@@ -1,0 +1,42 @@
+Description
+---
+
+Your task is to design and implement an algorithm for transferring data over
+the internet which makes optimal usage of CPU resources and network bandwidth.
+The idea is to transfer a file over the internet and to compress it in order
+to achieve optimal resource usage. The goal is not to write a compression
+algorithm but to come up with an algorithm which reads and compress data in a
+clever way to use the capabilities of the network.
+
+Deliverable
+---
+
+   * Well commented source code in C, C++ or Java
+   * Detailed documentation describing the algorithm and the modules of your
+     program
+
+You will need to provide a client (which sends file) and a server which saves
+the received file.
+
+Client:
+   * Input: filename, hostname server, port server
+   * Output: filename size, duration of the transfer, Mb/s, [compression rate optional]
+
+Server:
+   * each time a client connects: filename, size, client ip, Mb/sec.
+
+Third Party Libraries
+---
+
+All participants are required to rely on the zlib library. It can be
+downloaded from http://www.gzip.org/zlib/. There is also a java version at
+http://www.jcraft.com/jzlib/
+
+Limitations
+---
+
+You are not allowed to use any other third party libraries. Your code must be
+original and not similar to existing P2P technologies.
+
+
+
