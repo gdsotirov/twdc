@@ -22,18 +22,33 @@
  * File: server.h
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: server.h,v 1.1 2005/04/21 19:24:50 gsotirov Exp $
+ * $Id: server.h,v 1.2 2005/04/24 19:38:18 gsotirov Exp $
  */
 
 #ifndef __TWT_SERVER_H__
 #define __TWT_SERVER_H__
 
+/* Standard file descriptors */
+#ifdef __unix__
+#include <unistd.h>
+#else
+#define STDIN_FILENO  0
+#define STDOUT_FILENO 1
+#define STDERR_FILENO 2
+#endif
+
 #define BACKLOG 10
 
 /* Maximum file size in bytes the server should accept
- * Default: 100 MB
+ * Default: 10 MB
  */
-#define MAXFILESIZE 104857600
+#define MAXFILESIZE 10485760 /* Bytes */
+
+/* The port on which the server should operate */
+#define PORT 9919
+
+/* Where should all messages go */
+#define LOGFILE "/tmp/twdcd.log"
 
 #endif
 
