@@ -7,9 +7,9 @@ DEBUG = 1
 CC = gcc
 CXX = g++
 ifeq ($(DEBUG), 1)
- CFLAGS = -Wall -ansi -pedantic -pipe
-else
  CFLAGS = -Wall -ansi -pedantic -pipe -ggdb
+else
+ CFLAGS = -Wall -ansi -pedantic -pipe -O2
 endif
 
 CLIENT_NAME = client
