@@ -22,7 +22,7 @@
  * File: server.c
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: server.c,v 1.3 2005/04/24 19:38:18 gsotirov Exp $
+ * $Id: server.c,v 1.4 2005/04/25 21:00:26 gsotirov Exp $
  */
 
 #include <stdio.h>
@@ -30,19 +30,23 @@
 #include <string.h>
 #include <errno.h>
 #include <time.h>
+#include <unistd.h>
 #include <netdb.h>
 #include <signal.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/socket.h>
 
 #include "server.h"
 
 int writelog(int err_num, char * msg);
+int init_addr(struct sockaddr_in * addr);
 
 int main(int argc, char * argv[]) {
-  int sock = 0;
   int tcp_proto_num = 0;
   struct protoent * tcp_protoent = NULL;
+  int sock = 0;
+  struct sockaddr_in sock_addr;
 
   /* Become a daemon */
   /* - close standard files */
@@ -54,10 +58,24 @@ int main(int argc, char * argv[]) {
   switch ( fork() ) {
     case -1: writelog(errno, "Error: Can not fork a child");
              exit(-1);
-    case  0: /* TODO: first child */
+  /* - become session leader */
+    case  0: if ( setsid() == -1 ) {
+               writelog(errno, "Error: Can not become session leader");
+               exit(-1);
+             }
+
+             switch ( fork() ) {
+               case -1: writelog(errno, "Error: Can not fork a child");
+                        exit(-1);
+               case  0: umask(0);
+                        break;
+               default: exit(0);
+             }
+             break;
     default: exit(0);
   }
 
+  /* Child process */
   signal(SIGCHLD, SIG_IGN);
 
   if ( (tcp_protoent = getprotobyname("tcp")) != NULL )
@@ -67,32 +85,49 @@ int main(int argc, char * argv[]) {
     exit(-1);
   }
 
-  /* TODO: Bind the socket here */
-
   if ( (sock = socket(PF_INET, SOCK_STREAM, tcp_proto_num)) == -1) {
     writelog(errno, "Error: Can not open socket");
     exit(-1);
   }
 
-  if ( listen(sock, BACKLOG) == -1 ) {
-    writelog(errno, "Error: Can not start listening on socket.");
+  if ( init_addr(&sock_addr) != 0 )
+    exit(-1);
+
+  if ( bind(sock, (struct sockaddr *)&sock_addr, sizeof(sock_addr)) != 0 ) {
+    writelog(errno, "Error: Can not bind socket");
+    close(sock);
     exit(-1);
   }
 
-  /* TODO: Continue from here */
+  if ( listen(sock, BACKLOG) == -1 ) {
+    writelog(errno, "Error: Can not start listening on socket.");
+    close(sock);
+    exit(-1);
+  }
+
+  while (1) ;
+
+  close(sock);
 
   return 0;
 }
 
+/* Function    : writelog
+ * Description : Append error information to the server log.
+ * Input       : err_num - the global variable errno
+ *               msg     - custom error message to prepend befor the sys error
+ */
 int writelog(int err_num, char * msg) {
+  char log_fname[256] = {0};
   FILE * logfp = NULL;
   time_t now;
   struct tm * now_tm = NULL;
-  pid_t pid = 0;
+  pid_t pid = getpid();
   char * sys_err = NULL;
   char dt_fmt[64] = {0};
 
-  if ( (logfp = fopen(LOGFILE, "a")) == NULL ) {
+  sprintf(log_fname, LOGFILE, pid);
+  if ( (logfp = fopen(log_fname, "a+")) == NULL ) {
     fclose(logfp);
     return -1;
   }
@@ -102,9 +137,39 @@ int writelog(int err_num, char * msg) {
   strftime(dt_fmt, sizeof(dt_fmt), "%Y-%m-%d %H:%M:%S", now_tm);
   sys_err = strerror(err_num);
 
-  fprintf(logfp, "%s [%d] %s. System error: %s ", dt_fmt, pid, msg, sys_err);
+  fprintf(logfp, "%s [%d] %s. System error: %s\n", dt_fmt, pid, msg, sys_err);
 
   fclose(logfp);
+
+  return 0;
+}
+
+/* Function    : init_addr
+ * Description : Initialize server address structure
+ * Input       : Pointer to a sockaddr_in structure
+ * Return      : On sucess the function return 0. Any other value indicates
+ *               error.
+ */
+int init_addr(struct sockaddr_in * addr) {
+  char host_nm[256] = {0};
+  struct hostent * host_ent = NULL;
+
+  if ( addr == NULL )
+    return -1;
+
+  if ( gethostname(host_nm, sizeof(host_nm)) == -1 ) {
+    writelog(errno, "Erorr: Can not get host name");
+    return -1;
+  }
+
+  if ( (host_ent = gethostbyname(host_nm)) == NULL ) {
+    writelog(errno, "Error: Can not retrieve host address information");
+    return -1;
+  }
+
+  addr->sin_family = (sa_family_t)host_ent->h_addrtype;
+  addr->sin_port = (in_port_t)htons((uint16_t)PORT);
+  addr->sin_addr.s_addr = (in_addr_t)host_ent->h_addr_list[0];
 
   return 0;
 }

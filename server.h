@@ -22,20 +22,11 @@
  * File: server.h
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: server.h,v 1.2 2005/04/24 19:38:18 gsotirov Exp $
+ * $Id: server.h,v 1.3 2005/04/25 21:00:26 gsotirov Exp $
  */
 
 #ifndef __TWT_SERVER_H__
 #define __TWT_SERVER_H__
-
-/* Standard file descriptors */
-#ifdef __unix__
-#include <unistd.h>
-#else
-#define STDIN_FILENO  0
-#define STDOUT_FILENO 1
-#define STDERR_FILENO 2
-#endif
 
 #define BACKLOG 10
 
@@ -48,7 +39,7 @@
 #define PORT 9919
 
 /* Where should all messages go */
-#define LOGFILE "/tmp/twdcd.log"
+#define LOGFILE "/tmp/server-%d.log"
 
 #endif
 
