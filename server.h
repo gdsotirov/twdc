@@ -1,4 +1,4 @@
-/* TWT_Server - a client programm for the Tumbleweed Developer's Task
+/* TWDC - a client/server application for the Tumbleweed Developer's Contest
  * Copyright (C) 2005 Georgi D. Sotirov 
  *
  * This program is free software; you can redistribute it and/or
@@ -17,12 +17,12 @@
  *
  */
 
-/* Title: Server for the Tumbleweed Developer's Contest Task
+/* Title: Server
  * Description: Server configuraiton
  * File: server.h
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: server.h,v 1.4 2005/04/26 04:51:52 gsotirov Exp $
+ * $Id: server.h,v 1.5 2005/04/26 16:43:26 gsotirov Exp $
  */
 
 #ifndef __TWDC_SERVER_H__

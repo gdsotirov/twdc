@@ -1,4 +1,4 @@
-/* TWT_Server - a client programm for the Tumbleweed Developer's Task
+/* TWDC - a client/server application for the Tumbleweed Developer's Contest
  * Copyright (C) 2005 Georgi D. Sotirov 
  *
  * This program is free software; you can redistribute it and/or
@@ -17,12 +17,12 @@
  *
  */
 
-/* Title: Server for the Tumbleweed Developer's Contest Task
+/* Title: Server
  * Description: Server main programm
  * File: server.c
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: server.c,v 1.5 2005/04/26 04:52:07 gsotirov Exp $
+ * $Id: server.c,v 1.6 2005/04/26 16:43:26 gsotirov Exp $
  */
 
 #include <stdio.h>
@@ -37,8 +37,9 @@
 #include <sys/stat.h>
 #include <sys/socket.h>
 
-#include "server.h"
+#include "globals.h"
 #include "protocol.h"
+#include "server.h"
 
 int writelog(int err_num, char * msg);
 int init_addr(struct sockaddr_in * addr);
