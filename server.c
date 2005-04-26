@@ -22,7 +22,7 @@
  * File: server.c
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: server.c,v 1.4 2005/04/25 21:00:26 gsotirov Exp $
+ * $Id: server.c,v 1.5 2005/04/26 04:52:07 gsotirov Exp $
  */
 
 #include <stdio.h>
@@ -38,6 +38,7 @@
 #include <sys/socket.h>
 
 #include "server.h"
+#include "protocol.h"
 
 int writelog(int err_num, char * msg);
 int init_addr(struct sockaddr_in * addr);

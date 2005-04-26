@@ -22,12 +22,15 @@
  * File: client.c
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: client.c,v 1.2 2005/04/21 19:17:48 gsotirov Exp $
+ * $Id: client.c,v 1.3 2005/04/26 04:52:07 gsotirov Exp $
  */
 
 #include <stdio.h>
 
+#include "protocol.h"
+
 int main(int argc, char * argv[]) {
+  /* TODO: Start with parsing arguments here */
 
   return 0;
 }
