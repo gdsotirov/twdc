@@ -22,11 +22,11 @@
  * File: server.h
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: server.h,v 1.3 2005/04/25 21:00:26 gsotirov Exp $
+ * $Id: server.h,v 1.4 2005/04/26 04:51:52 gsotirov Exp $
  */
 
-#ifndef __TWT_SERVER_H__
-#define __TWT_SERVER_H__
+#ifndef __TWDC_SERVER_H__
+#define __TWDC_SERVER_H__
 
 #define BACKLOG 10
 
@@ -35,11 +35,8 @@
  */
 #define MAXFILESIZE 10485760 /* Bytes */
 
-/* The port on which the server should operate */
-#define PORT 9919
-
 /* Where should all messages go */
 #define LOGFILE "/tmp/server-%d.log"
 
-#endif
+#endif /* __TWDC_SERVER_H__ */
 
