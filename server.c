@@ -22,7 +22,7 @@
  * File: server.c
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: server.c,v 1.6 2005/04/26 16:43:26 gsotirov Exp $
+ * $Id: server.c,v 1.7 2005/04/26 18:17:18 gsotirov Exp $
  */
 
 #include <stdio.h>
@@ -89,6 +89,7 @@ int main(int argc, char * argv[]) {
 
   if ( (sock = socket(PF_INET, SOCK_STREAM, tcp_proto_num)) == -1) {
     writelog(errno, "Error: Can not open socket");
+    close(sock);
     exit(-1);
   }
 
