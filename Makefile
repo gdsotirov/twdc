@@ -1,5 +1,6 @@
 # Makefile for the Tumbleweed Developer's Contest Task
 # Written by Georgi D. Sotirov <gdsotirov@dir.bg>
+# $Id: Makefile,v 1.4 2005/04/26 16:41:30 gsotirov Exp $
 #
 
 DEBUG = 1
