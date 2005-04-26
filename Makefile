@@ -18,13 +18,15 @@ SERVER_NAME = server
 RM = rm
 RMFLAGS = -f
 
-$(CLIENT_NAME): client.c
-	$(CC) $(CFLAGS) -o $@ $<
-$(SERVER_NAME): server.c server.h
-	$(CC) $(CFLAGS) -o $@ $<
-
+.PHONY: all clean
 
 all: $(CLIENT_NAME) $(SERVER_NAME)
+
+$(CLIENT_NAME): client.c client.h globals.h protocol.h
+	$(CC) $(CFLAGS) -o $@ $<
+
+$(SERVER_NAME): server.c server.h globals.h protocol.h
+	$(CC) $(CFLAGS) -o $@ $<
 
 clean:
 	$(RM) $(RMFLAGS) $(CLIENT_NAME)
