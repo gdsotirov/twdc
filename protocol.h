@@ -1,4 +1,4 @@
-/* TWT_Protocol - a client/server protocol for the Tumbleweed Developer's Task
+/* TWDC - a client/server application for the Tumbleweed Developer's Contest
  * Copyright (C) 2005 Georgi D. Sotirov 
  *
  * This program is free software; you can redistribute it and/or
@@ -17,12 +17,13 @@
  *
  */
 
-/* Title: Protocol for the Tumbleweed Developer's Contest Task
- * Description: Server configuraiton
+/* Title: Protocol definition
+ * Description: This file define protocol specific constants and the
+ *              protocol message structure
  * File: protocol.h
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: protocol.h,v 1.1 2005/04/26 04:50:57 gsotirov Exp $
+ * $Id: protocol.h,v 1.2 2005/04/26 16:42:56 gsotirov Exp $
  */
 
 #ifndef __TWDC_PROTOCOL_H__
@@ -30,6 +31,9 @@
 
 /* The communication port */
 #define PORT 9919
+
+/* Protocol message length */
+#define PMSG_LNGTH 512
 
 /* Error codes */
 #define TWDC_ERR_SUCCESS 0
@@ -43,7 +47,7 @@
 struct twdc_msg {
   char err_code;
   char msg_type;
-  char data[512];
+  char data[PMSG_LNGTH];
 };
 
 #endif /* __TWDC_PROTOCOL_H__ */
