@@ -22,7 +22,7 @@
  * File: client.h
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: client.h,v 1.1 2005/04/26 16:39:23 gsotirov Exp $
+ * $Id: client.h,v 1.2 2005/04/26 18:17:56 gsotirov Exp $
  */
 
 #ifndef __TWDC_CLIENT_H__
@@ -31,10 +31,24 @@
 /* client error codes */
 #define ERR_FNAME_TOO_LONG   -100
 #define ERR_HOSTNM_TOO_LONG  -101
+#define ERR_CNT_RSLVE_HOST   -102
+#define ERR_INVLD_AF         -103
+#define ERR_CNT_OPEN_SOCK    -201
+#define ERR_CNT_CNNCT_HOST   -202
+
+/* client warning codes */
+#define WARN_ZERO_FILE        100
 
 /* client error messages */
 #define ERR_FNAME_TOO_LONG_STR  "File name too long. The length should not exceed %d characters."
 #define ERR_HOSTNM_TOO_LONG_STR "Host name too long. The length should not exceed %d characters."
+#define ERR_CNT_RSLVE_HOST_STR "Can not resolve host '%s'"
+#define ERR_INVLD_AF_STR       "Client does not support the address family of the local host"
+#define ERR_CNT_OPEN_SOCK_STR  "Can not open socket"
+#define ERR_CNT_CNNCT_HOST_STR "Can not connect to host '%s:%d'."
+
+/* client warning messages */
+#define WARN_ZERO_FILE_STR "The transfered file is with zero size."
 
 #endif /* __TWDC_CLIENT_H__ */
 

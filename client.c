@@ -22,7 +22,7 @@
  * File: client.c
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: client.c,v 1.4 2005/04/26 16:42:13 gsotirov Exp $
+ * $Id: client.c,v 1.5 2005/04/26 18:17:56 gsotirov Exp $
  */
 
 #include <stdio.h>
@@ -31,7 +31,10 @@
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
+#include <netdb.h>
 #include <getopt.h>
+#include <sys/types.h>
+#include <sys/socket.h>
 
 #include "globals.h"
 #include "protocol.h"
@@ -46,9 +49,12 @@ void print_error(int errcd, int syserr, ...);
 
 int main(int argc, char * argv[]) {
   int c = 0;
-  /* option values */
+  int sock = 0;
+  struct hostent * host_ent = NULL;
+  struct sockaddr_in sock_addr;
+  /* options */
   char fname[FNAME_LNGTH] = {0};
-  char host[HOSTNM_LNGTH] = {0};
+  char hostnm[HOSTNM_LNGTH] = {0};
   int port = 0;
   char verbose = 0; /* false */
   /* available options */
@@ -75,14 +81,14 @@ int main(int argc, char * argv[]) {
                   strncpy(fname, optarg, sizeof(fname));
                 else {
                   print_error(ERR_FNAME_TOO_LONG, 0, FNAME_LNGTH);
-                  exit(-1);
+                  exit(ERR_FNAME_TOO_LONG);
                 }
                 break;
       case 'h': if ( strlen(optarg) <= (HOSTNM_LNGTH - 1) )
-                  strncpy(host, optarg, sizeof(host));
+                  strncpy(hostnm, optarg, sizeof(hostnm));
                 else {
                   print_error(ERR_HOSTNM_TOO_LONG, 0, HOSTNM_LNGTH);
-                  exit(-1);
+                  exit(ERR_HOSTNM_TOO_LONG);
                 }
                 break;
       case 'p': if ( optarg != NULL )
@@ -104,9 +110,32 @@ int main(int argc, char * argv[]) {
     }
   }
 
-  printf("Filename = %s\n", fname);
-  printf("Server:Port = %s:%d\n", host, port);
-  printf("Verbose = %s\n", verbose?"true":"false");
+  if ((host_ent = gethostbyname(hostnm)) == NULL ) {
+    print_error(ERR_CNT_RSLVE_HOST, errno, hostnm);
+    exit(ERR_CNT_RSLVE_HOST);
+  }
+
+  if ( (sock = socket(host_ent->h_addrtype, SOCK_STREAM, 0)) == -1 ) {
+    print_error(ERR_CNT_OPEN_SOCK, errno);
+    close(sock);
+    exit(ERR_CNT_OPEN_SOCK);
+  }
+
+  sock_addr.sin_family = (sa_family_t)host_ent->h_addrtype;
+  sock_addr.sin_port = htons((uint16_t)port);
+  sock_addr.sin_addr.s_addr = (in_addr_t)host_ent->h_addr_list[0];
+
+  if ( connect(sock, (struct sockaddr *)&sock_addr, sizeof(sock_addr)) != 0 ) {
+    print_error(ERR_CNT_CNNCT_HOST, errno, hostnm, port);
+    shutdown(sock, SHUT_RDWR);
+    close(sock);
+    exit(ERR_CNT_CNNCT_HOST);
+  }
+
+  /* TODO: communicate with the server here */
+
+  shutdown(sock, SHUT_RDWR);
+  close(sock);
 
   return 0;
 }
