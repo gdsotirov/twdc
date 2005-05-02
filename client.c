@@ -22,7 +22,7 @@
  * File: client.c
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: client.c,v 1.5 2005/04/26 18:17:56 gsotirov Exp $
+ * $Id: client.c,v 1.6 2005/05/02 19:22:14 gsotirov Exp $
  */
 
 #include <stdio.h>
@@ -46,6 +46,7 @@ static char * progname = NULL;
 void help(void);
 void version(void);
 void print_error(int errcd, int syserr, ...);
+void addr_to_str(int addr, char * addr_str, int addr_str_len);
 
 int main(int argc, char * argv[]) {
   int c = 0;
@@ -55,7 +56,7 @@ int main(int argc, char * argv[]) {
   /* options */
   char fname[FNAME_LNGTH] = {0};
   char hostnm[HOSTNM_LNGTH] = {0};
-  int port = 0;
+  unsigned short port = PORT;
   char verbose = 0; /* false */
   /* available options */
   struct option cl_optns[] = {
@@ -92,9 +93,7 @@ int main(int argc, char * argv[]) {
                 }
                 break;
       case 'p': if ( optarg != NULL )
-                  port = atoi(optarg);
-                else
-                  port = PORT;
+                  port = (unsigned short)atoi(optarg);
                 break;
       case 'v': verbose = TRUE;
                 break;
@@ -122,17 +121,23 @@ int main(int argc, char * argv[]) {
   }
 
   sock_addr.sin_family = (sa_family_t)host_ent->h_addrtype;
-  sock_addr.sin_port = htons((uint16_t)port);
-  sock_addr.sin_addr.s_addr = (in_addr_t)host_ent->h_addr_list[0];
+  sock_addr.sin_port = (in_port_t)htons((uint16_t)port);
+  sock_addr.sin_addr.s_addr = *(in_addr_t *)host_ent->h_addr_list[0];
+
+  if ( verbose )
+    printf("%s[%d]: Connecting to %s:%hd (%s:%hd)...\n", progname, getpid(), hostnm, port, inet_ntoa(sock_addr.sin_addr), port);
 
   if ( connect(sock, (struct sockaddr *)&sock_addr, sizeof(sock_addr)) != 0 ) {
-    print_error(ERR_CNT_CNNCT_HOST, errno, hostnm, port);
+    print_error(ERR_CNT_CNNCT_HOST, errno, hostnm, port, inet_ntoa(sock_addr.sin_addr), port);
     shutdown(sock, SHUT_RDWR);
     close(sock);
     exit(ERR_CNT_CNNCT_HOST);
   }
 
-  /* TODO: communicate with the server here */
+  if ( verbose )
+    printf("%s[%d]: Connected to %s:%hd (%s:%hd)\n", progname, getpid(), hostnm, port, inet_ntoa(sock_addr.sin_addr), port);
+
+  sleep(10);
 
   shutdown(sock, SHUT_RDWR);
   close(sock);
@@ -174,25 +179,42 @@ void print_error(int errcd, int syserr, ...) {
   va_list v_lst;
 
   switch ( errcd ) {
+    /* Errors */
     case ERR_FNAME_TOO_LONG  :
       strncpy(errcd_fmt, ERR_FNAME_TOO_LONG_STR, sizeof(errcd_fmt));
       break;
     case ERR_HOSTNM_TOO_LONG :
       strncpy(errcd_fmt, ERR_HOSTNM_TOO_LONG_STR, sizeof(errcd_fmt));
       break;
+    case ERR_CNT_RSLVE_HOST :
+      strncpy(errcd_fmt, ERR_CNT_RSLVE_HOST_STR, sizeof(errcd_fmt));
+      break;
+    case ERR_INVLD_AF :
+      strncpy(errcd_fmt, ERR_INVLD_AF_STR, sizeof(errcd_fmt));
+      break;
+    case ERR_CNT_OPEN_SOCK :
+      strncpy(errcd_fmt, ERR_CNT_OPEN_SOCK_STR, sizeof(errcd_fmt));
+      break;
+    case ERR_CNT_CNNCT_HOST :
+      strncpy(errcd_fmt, ERR_CNT_CNNCT_HOST_STR, sizeof(errcd_fmt));
+      break;
+    /* Warnings */
+    case WARN_ZERO_FILE :
+      strncpy(errcd_fmt, WARN_ZERO_FILE_STR, sizeof(errcd_fmt));
+      break;
     default: break;
   }
 
   if ( errcd < 0 )
-    sprintf(msg_fmt, "%s[%d]: Error: %s\n", progname, getpid(), errcd_fmt);
+    sprintf(msg_fmt, "%s[%d]: Error: %s ", progname, getpid(), errcd_fmt);
   else if ( errcd > 0 ) 
-     sprintf(msg_fmt, "%s[%d]: Warning: %s\n", progname, getpid(), errcd_fmt);
+    sprintf(msg_fmt, "%s[%d]: Warning: %s ", progname, getpid(), errcd_fmt);
 
   va_start(v_lst, syserr);
   vfprintf(stderr, msg_fmt, v_lst);
 
   if ( errno != 0 ) {
-    perror("System error: ");
+    perror("System error");
   }
 }
 
