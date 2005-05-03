@@ -22,7 +22,7 @@
  * File: server.h
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: server.h,v 1.5 2005/04/26 16:43:26 gsotirov Exp $
+ * $Id: server.h,v 1.6 2005/05/03 18:51:21 gsotirov Exp $
  */
 
 #ifndef __TWDC_SERVER_H__
@@ -34,6 +34,16 @@
  * Default: 10 MB
  */
 #define MAXFILESIZE 10485760 /* Bytes */
+
+/* The direcotry in which the uploaded files wlll be
+ * stored.
+ */
+#define STOREDIR "/tmp/store"
+
+/* The directory where the temporary files will be
+ * stored
+ */
+#define TEMPDIR "/tmp"
 
 /* Where should all messages go */
 #define LOGFILE "/tmp/server-%d.log"

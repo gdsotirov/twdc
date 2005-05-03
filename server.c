@@ -22,7 +22,7 @@
  * File: server.c
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: server.c,v 1.8 2005/05/02 19:22:14 gsotirov Exp $
+ * $Id: server.c,v 1.9 2005/05/03 18:51:21 gsotirov Exp $
  */
 
 #include <stdio.h>
@@ -44,7 +44,8 @@
 #include "server.h"
 
 int writelog(int err_num, char * cl_msg_fmt, ...);
-int init_addr(char * host_nm, int host_nm_sz, struct sockaddr_in * addr);
+int init_addr(char * host_nm, size_t host_nm_sz, struct sockaddr_in * addr);
+int service(int cl_sock, struct sockaddr_in * cl_addr);
 
 int main(int argc, char * argv[]) {
   int tcp_proto_num = 0;
@@ -52,6 +53,7 @@ int main(int argc, char * argv[]) {
   int sock = 0;
   struct sockaddr_in sock_addr;
   char hostnm[256] = {0};
+  char srv_addr_str[16] = {0};
 
   /* Become a daemon */
   /* - close standard files */
@@ -96,8 +98,12 @@ int main(int argc, char * argv[]) {
     exit(-1);
   }
 
+  /* TODO: Configure the socket here */
+
   if ( init_addr(hostnm, sizeof(hostnm), &sock_addr) != 0 )
     exit(-1);
+
+  strncpy(srv_addr_str, inet_ntoa(sock_addr.sin_addr), sizeof(srv_addr_str));
 
   if ( bind(sock, (struct sockaddr *)&sock_addr, sizeof(sock_addr)) != 0 ) {
     writelog(errno, "Error: Can not bind socket"); close(sock);
@@ -110,10 +116,32 @@ int main(int argc, char * argv[]) {
     exit(-1);
   }
 
-  writelog(0, "Info: Start listening on %s:%d (%s:%d)", hostnm, PORT, inet_ntoa(sock_addr.sin_addr), PORT);
+  writelog(0, "Info: Start listening on all interfaces of %s (%s:%d)", hostnm, srv_addr_str, PORT);
 
-  while (1)
+  while (1) {
+    int cl_sock = 0;
+    struct sockaddr_in cl_addr;
+    socklen_t cl_addr_len = sizeof(cl_addr);
+
+    if ( (cl_sock = accept(sock, (struct sockaddr *)&cl_addr, &cl_addr_len)) == -1) {
+      writelog(errno, "Error: Can not accept connection from client '%s'", inet_ntoa(cl_addr.sin_addr));
+      close(cl_sock);
+    }
+
+    switch ( fork() ) {
+      case -1: writelog(errno, "Error: Can not fork a child");
+               break;
+      case  0: {
+                 int err = service(cl_sock, &cl_addr);
+                 shutdown(cl_sock, SHUT_RDWR);
+                 close(cl_sock);
+                 exit(err);
+               }
+      default: break;
+    }
+
     sleep(1);
+  }
 
   close(sock);
 
@@ -127,7 +155,7 @@ int main(int argc, char * argv[]) {
  */
 int writelog(int err_num, char * cl_msg_fmt, ...) {
   FILE * logfp = NULL;
-  char log_fname[256] = {0};
+  static char log_fname[256] = {0};
   time_t now;
   struct tm * now_tm = NULL;
   char dt_fmt[64] = {0};
@@ -135,7 +163,9 @@ int writelog(int err_num, char * cl_msg_fmt, ...) {
   va_list v_lst;
   char * sys_err = NULL;
 
-  sprintf(log_fname, LOGFILE, getpid());
+  if (strlen(log_fname) == 0 ) 
+    sprintf(log_fname, LOGFILE, getpid());
+
   if ( (logfp = fopen(log_fname, "a+")) == NULL ) {
     fclose(logfp);
     return -1;
@@ -149,9 +179,9 @@ int writelog(int err_num, char * cl_msg_fmt, ...) {
   sys_err = strerror(err_num);
 
   if ( err_num != 0 )
-    fprintf(logfp, "%s %s. System error: %s\n", dt_fmt, cl_msg, sys_err);
+    fprintf(logfp, "%s [%d] %s. System error: %s\n", dt_fmt, getpid(), cl_msg, sys_err);
   else
-    fprintf(logfp, "%s %s\n", dt_fmt, cl_msg);
+    fprintf(logfp, "%s [%d] %s\n", dt_fmt, getpid(), cl_msg);
 
   fclose(logfp);
 
@@ -164,9 +194,8 @@ int writelog(int err_num, char * cl_msg_fmt, ...) {
  * Return      : On sucess the function return 0. Any other value indicates
  *               error.
  */
-int init_addr(char * host_nm, int host_nm_sz, struct sockaddr_in * addr) {
+int init_addr(char * host_nm, size_t host_nm_sz, struct sockaddr_in * addr) {
   struct hostent * host_ent = NULL;
-  char addr_str[16] = {0};
 
   if ( addr == NULL )
     return -1;
@@ -183,7 +212,43 @@ int init_addr(char * host_nm, int host_nm_sz, struct sockaddr_in * addr) {
 
   addr->sin_family = (sa_family_t)host_ent->h_addrtype;
   addr->sin_port = (in_port_t)htons((uint16_t)PORT);
-  addr->sin_addr.s_addr = *(in_addr_t *)host_ent->h_addr_list[0];
+  addr->sin_addr.s_addr = htons(INADDR_ANY);
+
+  return 0;
+}
+
+/* Function    : service
+ * Description : Service a client
+ * Return      : On success the function will return zero.
+ */
+int service(int cl_sock, struct sockaddr_in * cl_addr) {
+  struct twdc_msg_file file_req;
+  struct twdc_msg_status msg_stat;
+  
+  if ( recv(cl_sock, &file_req, sizeof(file_req), 0x0) != sizeof(file_req)) {
+    msg_stat.header.err_code = TWDC_ERR_UNEXPCTD_MSG;
+    msg_stat.header.msg_type = TWDC_MSG_ERROR;
+    send(cl_sock, &msg_stat, sizeof(msg_stat), 0x0);
+    return TWDC_ERR_UNEXPCTD_MSG;
+  }
+
+  /* Deny upload of files bigger than the given limit */
+  if ( file_req.fsize > MAXFILESIZE ) {
+    int max_sz = MAXFILESIZE;
+    writelog(0, "Error: Client '%s' tryied to upload file with size %d Bytes", inet_ntoa(cl_addr->sin_addr), file_req.fsize);
+    msg_stat.header.err_code = TWDC_ERR_FILE_SZ;
+    msg_stat.header.msg_type = TWDC_MSG_ERROR;
+    memcpy(msg_stat.data, &max_sz, sizeof(msg_stat.data));
+    send(cl_sock, &msg_stat, sizeof(msg_stat), 0x0);
+    return TWDC_ERR_FILE_SZ;
+  }
+  else {
+    msg_stat.header.err_code = TWDC_ERR_SUCCESS;
+    msg_stat.header.msg_type = TWDC_MSG_ERROR;
+    send(cl_sock, &msg_stat, sizeof(msg_stat), 0x0);
+  }
+
+  writelog(0, "Info: Accepted file '%s' (%d bytes) from '%s'", file_req.fname, file_req.fsize, inet_ntoa(cl_addr->sin_addr));
 
   return 0;
 }

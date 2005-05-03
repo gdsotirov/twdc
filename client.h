@@ -22,7 +22,7 @@
  * File: client.h
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: client.h,v 1.3 2005/05/02 19:22:14 gsotirov Exp $
+ * $Id: client.h,v 1.4 2005/05/03 18:51:21 gsotirov Exp $
  */
 
 #ifndef __TWDC_CLIENT_H__
@@ -34,10 +34,18 @@
  */
 #define ERR_FNAME_TOO_LONG   -100
 #define ERR_HOSTNM_TOO_LONG  -101
-#define ERR_CNT_RSLVE_HOST   -102
-#define ERR_INVLD_AF         -103
-#define ERR_CNT_OPEN_SOCK    -201
-#define ERR_CNT_CNNCT_HOST   -202
+#define ERR_NO_FILE_GIVEN    -102
+#define ERR_CNT_RSLVE_HOST   -103
+#define ERR_INVLD_AF         -104
+#define ERR_CNT_RD_FILE      -201
+#define ERR_CNT_GET_FILE_SZ  -202
+#define ERR_CNT_OPEN_SOCK    -203
+#define ERR_CNT_CNNCT_HOST   -204
+#define ERR_SND_DATA         -205
+#define ERR_RCV_DATA         -206
+#define ERR_SRV_UNKNWN       -301
+#define ERR_SRV_UNEXPCTD     -302
+#define ERR_SRV_FILE_SZ      -303
 
 /* client warning codes */
 #define WARN_ZERO_FILE        100
@@ -45,13 +53,21 @@
 /* client error messages */
 #define ERR_FNAME_TOO_LONG_STR  "File name too long. The length should not exceed %d characters"
 #define ERR_HOSTNM_TOO_LONG_STR "Host name too long. The length should not exceed %d characters"
+#define ERR_NO_FILE_GIVEN_STR   "Please, specify file to upload"
 #define ERR_CNT_RSLVE_HOST_STR  "Can not resolve host '%s'"
 #define ERR_INVLD_AF_STR        "Client does not support the address family of the local host"
+#define ERR_CNT_RD_FILE_STR     "Can not read from file '%s'"
+#define ERR_CNT_GET_FILE_SZ_STR "Can not get the size of file '%s'"
 #define ERR_CNT_OPEN_SOCK_STR   "Can not open socket"
 #define ERR_CNT_CNNCT_HOST_STR  "Can not connect to %s:%hd (%s:%hd)"
+#define ERR_SND_DATA_STR        "While sending data to '%s:%hd'"
+#define ERR_RCV_DATA_STR        "While receiving data from '%s:%hd'"
+#define ERR_SRV_UNKNWN_STR      "Server: Unknown error"
+#define ERR_SRV_UNEXPCTD_STR    "Server: Unexpected message"
+#define ERR_SRV_FILE_SZ_STR     "Server: Sorry. File size too long. It should not exceed %d Bytes (%s)"
 
 /* client warning messages */
-#define WARN_ZERO_FILE_STR "The transfered file is with zero size."
+#define WARN_ZERO_FILE_STR      "The transfered file is with zero size."
 
 #endif /* __TWDC_CLIENT_H__ */
 

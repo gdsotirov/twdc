@@ -23,7 +23,7 @@
  * File: protocol.h
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: protocol.h,v 1.3 2005/05/02 19:22:14 gsotirov Exp $
+ * $Id: protocol.h,v 1.4 2005/05/03 18:51:21 gsotirov Exp $
  */
 
 #ifndef __TWDC_PROTOCOL_H__
@@ -36,23 +36,31 @@
 #define PMSG_LNGTH 512
 
 /* Error codes */
-#define TWDC_ERR_SUCCESS 0
+#define TWDC_ERR_SUCCESS      0
+#define TWDC_ERR_UNEXPCTD_MSG -101
+#define TWDC_ERR_FILE_SZ      -102
 
 /* Message types */
-#define TWDC_MSG_PROTO    1
+#define TWDC_MSG_RSRVD    1
 #define TWDC_MSG_ERROR    2
 #define TWDC_MSG_FILE_REQ 3
 #define TWDC_MSG_DATA     4
 
 /* Protocol message */
 struct twdc_msg_head {
-  char err_code;
-  char msg_type;
+  short int err_code;
+  short int msg_type;
+};
+
+struct twdc_msg_status {
+  struct twdc_msg_head header;
+  char data[4]; /* Additional data */
 };
 
 struct twdc_msg_file {
   struct twdc_msg_head header;
   char fname[256];
+  size_t fsize;
 };
 
 struct twdc_msg_data {
