@@ -18,16 +18,20 @@
  */
 
 /* Title: Protocol definition
- * Description: This file define protocol specific constants and the
- *              protocol message structure
+ * Description: Definition of protocol specific constants, the protocol
+ *              messages and interface
  * File: protocol.h
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: protocol.h,v 1.4 2005/05/03 18:51:21 gsotirov Exp $
+ * $Id: protocol.h,v 1.5 2005/05/08 15:42:17 gsotirov Exp $
  */
 
 #ifndef __TWDC_PROTOCOL_H__
 #define __TWDC_PROTOCOL_H__
+
+/* Protocol version */
+#define TWDC_PROTO_VER_MAJOR 0
+#define TWDC_PROTO_VER_MINOR 1
 
 /* The communication port */
 #define PORT 9919
@@ -35,38 +39,58 @@
 /* Protocol message length */
 #define PMSG_LNGTH 512
 
-/* Error codes */
-#define TWDC_ERR_SUCCESS      0
-#define TWDC_ERR_UNEXPCTD_MSG -101
-#define TWDC_ERR_FILE_SZ      -102
-
 /* Message types */
 #define TWDC_MSG_RSRVD    1
 #define TWDC_MSG_ERROR    2
 #define TWDC_MSG_FILE_REQ 3
 #define TWDC_MSG_DATA     4
 
+/* Error codes */
+#define TWDC_ERR_SUCCESS      0
+#define TWDC_ERR_UNEXPCTD_MSG -101
+#define TWDC_ERR_FILE_SZ      -102
+
 /* Protocol message */
 struct twdc_msg_head {
-  short int err_code;
-  short int msg_type;
+  char msg_type;
+  char ver_major;
+  char ver_minor;
 };
 
-struct twdc_msg_status {
-  struct twdc_msg_head header;
-  char data[4]; /* Additional data */
+/* Error message */
+struct twdc_msg_err {
+  char err_code;
+  char data[4];
 };
 
+/* File request message - file name + file size */
 struct twdc_msg_file {
-  struct twdc_msg_head header;
-  char fname[256];
-  size_t fsize;
+  char     fname[256];
+  long int fsize;
 };
 
+/* Data message - header + data */
 struct twdc_msg_data {
-  struct twdc_msg_head header;
-  char data[PMSG_LNGTH];
+  char buf[PMSG_LNGTH];
 };
+
+/* Message body type */
+union twdc_data {
+  struct twdc_msg_err  error;
+  struct twdc_msg_file file;
+  struct twdc_msg_data data;
+};
+
+/* General message */
+struct twdc_msg {
+  struct twdc_msg_head header;
+  union  twdc_data     body;
+};
+
+/* Protocol interface */
+void make_err_msg(struct twdc_msg * msg, char err_cd);
+void make_file_msg(struct twdc_msg * msg, char * fname, long int fsize);
+void make_data_msg(struct twdc_msg * msg, char * buf, long int buf_sz);
 
 #endif /* __TWDC_PROTOCOL_H__ */
 
