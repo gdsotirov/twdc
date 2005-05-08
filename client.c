@@ -22,7 +22,7 @@
  * File: client.c
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: client.c,v 1.7 2005/05/03 18:51:21 gsotirov Exp $
+ * $Id: client.c,v 1.8 2005/05/08 15:43:35 gsotirov Exp $
  */
 
 #include <stdio.h>
@@ -43,6 +43,7 @@
 
 #include "globals.h"
 #include "protocol.h"
+#include "data.h"
 #include "client.h"
 
 static char * progname = NULL;
@@ -51,7 +52,7 @@ static char * progname = NULL;
 void help(void);
 void version(void);
 void print_error(int errcd, int syserr, ...);
-int print_response(struct twdc_msg_status * msg_stat);
+int print_response(struct twdc_msg * msg_stat);
 void hr_size(int size, char * hr_str, size_t hr_str_len);
 
 int main(int argc, char * argv[]) {
@@ -78,8 +79,8 @@ int main(int argc, char * argv[]) {
   };
   int cl_pid = getpid();
   int filetosend = 0;
-  struct twdc_msg_file file_req;
-  struct twdc_msg_status msg_stat;
+  struct twdc_msg file_req;
+  struct twdc_msg msg_stat;
 
   progname = argv[0];
 
@@ -152,7 +153,7 @@ int main(int argc, char * argv[]) {
   sock_addr.sin_family = (sa_family_t)host_ent->h_addrtype;
   sock_addr.sin_port = (in_port_t)htons((uint16_t)port);
   sock_addr.sin_addr.s_addr = *(in_addr_t *)host_ent->h_addr_list[0];
-  strncpy(hostaddr_str, inet_ntoa(sock_addr.sin_addr), sizeof(hostaddr_str));
+  strncpy(hostaddr_str, (char *)inet_ntoa(sock_addr.sin_addr), sizeof(hostaddr_str));
 
   if ( verbose )
     printf("%s[%d]: Connecting to '%s:%hd' (%s:%hd)...\n", progname, cl_pid, hostnm, port, hostaddr_str, port);
@@ -168,18 +169,15 @@ int main(int argc, char * argv[]) {
     printf("%s[%d]: Connected to '%s:%hd' (%s:%hd)\n", progname, cl_pid, hostnm, port, hostaddr_str, port);
 
   /* Request file upload to the server */
-  file_req.header.err_code = 0;
-  file_req.header.msg_type = TWDC_MSG_FILE_REQ;
-  strncpy(file_req.fname, basename(fname), sizeof(file_req.fname)); 
-  file_req.fsize = fstat.st_size;
+  make_file_msg(&file_req, basename(fname), fstat.st_size);
   
   if ( verbose ) {
     char hr_fsize_str[10] = {0};
-    hr_size(file_req.fsize, hr_fsize_str, sizeof(hr_fsize_str));
+    hr_size(file_req.body.file.fsize, hr_fsize_str, sizeof(hr_fsize_str));
     printf("%s[%d]: Requesting upload of file '%s' with size %d Bytes (%s)...\n", progname, cl_pid, fname, (int)fstat.st_size, hr_fsize_str);
   }
 
-  if ( send(sock, &file_req, sizeof(file_req), 0x0) != sizeof(file_req)) {
+  if ( snd_data(sock, (char *)&file_req, sizeof(file_req)) != 0 ) {
     print_error(ERR_SND_DATA, errno, hostnm, port);
     shutdown(sock, SHUT_RDWR);
     close(sock);
@@ -187,7 +185,7 @@ int main(int argc, char * argv[]) {
   }
   
   /* Get and analyze the server response */
-  if ( recv(sock, &msg_stat, sizeof(msg_stat), 0x0) != sizeof(msg_stat)) {
+  if ( rcv_data(sock, (char *)&msg_stat, sizeof(msg_stat)) != 0 ) {
     print_error(ERR_RCV_DATA, errno, hostnm, port);
     shutdown(sock, SHUT_RDWR);
     close(sock);
@@ -317,13 +315,13 @@ void print_error(int errcd, int syserr, ...) {
 /* Function    : print_response
  * Description : Print the server response to the client terminal
  */
-int print_response(struct twdc_msg_status * msg_stat) {
-  switch ( msg_stat->header.err_code ) {
+int print_response(struct twdc_msg * msg_err) {
+  switch ( msg_err->body.error.err_code ) {
     case TWDC_ERR_UNEXPCTD_MSG : 
       print_error(ERR_SRV_UNEXPCTD, 0);
       return ERR_SRV_UNEXPCTD;
     case TWDC_ERR_FILE_SZ : {
-        int max_sz = *(int *)&msg_stat->data;
+        int max_sz = *(int *)&msg_err->body.error.data;
         char max_sz_str[10] = {0};
 
         hr_size(max_sz, max_sz_str, sizeof(max_sz_str));

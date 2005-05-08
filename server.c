@@ -22,7 +22,7 @@
  * File: server.c
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: server.c,v 1.9 2005/05/03 18:51:21 gsotirov Exp $
+ * $Id: server.c,v 1.10 2005/05/08 15:43:35 gsotirov Exp $
  */
 
 #include <stdio.h>
@@ -41,6 +41,7 @@
 
 #include "globals.h"
 #include "protocol.h"
+#include "data.h"
 #include "server.h"
 
 int writelog(int err_num, char * cl_msg_fmt, ...);
@@ -48,8 +49,6 @@ int init_addr(char * host_nm, size_t host_nm_sz, struct sockaddr_in * addr);
 int service(int cl_sock, struct sockaddr_in * cl_addr);
 
 int main(int argc, char * argv[]) {
-  int tcp_proto_num = 0;
-  struct protoent * tcp_protoent = NULL;
   int sock = 0;
   struct sockaddr_in sock_addr;
   char hostnm[256] = {0};
@@ -85,14 +84,7 @@ int main(int argc, char * argv[]) {
   /* Child process */
   signal(SIGCHLD, SIG_IGN);
 
-  if ( (tcp_protoent = getprotobyname("tcp")) != NULL )
-    tcp_proto_num = tcp_protoent->p_proto;
-  else {
-    writelog(errno, "Error: TCP protocol unknown");
-    exit(-1);
-  }
-
-  if ( (sock = socket(PF_INET, SOCK_STREAM, tcp_proto_num)) == -1) {
+  if ( (sock = socket(PF_INET, SOCK_STREAM, 0)) == -1) {
     writelog(errno, "Error: Can not open socket");
     close(sock);
     exit(-1);
@@ -222,33 +214,49 @@ int init_addr(char * host_nm, size_t host_nm_sz, struct sockaddr_in * addr) {
  * Return      : On success the function will return zero.
  */
 int service(int cl_sock, struct sockaddr_in * cl_addr) {
-  struct twdc_msg_file file_req;
-  struct twdc_msg_status msg_stat;
+  /*struct twdc_msg_file file_req;
+  struct twdc_msg_data rcvbuf;
+  int rcvbuf_len = 0;
+  struct twdc_msg msg;
   
-  if ( recv(cl_sock, &file_req, sizeof(file_req), 0x0) != sizeof(file_req)) {
-    msg_stat.header.err_code = TWDC_ERR_UNEXPCTD_MSG;
-    msg_stat.header.msg_type = TWDC_MSG_ERROR;
-    send(cl_sock, &msg_stat, sizeof(msg_stat), 0x0);
+  * File request *
+  if ( rcv_data(cl_sock, (char *)&file_req, sizeof(file_req)) != 0 ) {
+    msg.header.error.err_code = TWDC_ERR_UNEXPCTD_MSG;
+    msg.header.msg_type = TWDC_MSG_ERROR;
+    snd_data(cl_sock, (char *)&msg, sizeof(msg));
     return TWDC_ERR_UNEXPCTD_MSG;
   }
 
-  /* Deny upload of files bigger than the given limit */
+  * Deny upload of files bigger than the given limit *
   if ( file_req.fsize > MAXFILESIZE ) {
     int max_sz = MAXFILESIZE;
     writelog(0, "Error: Client '%s' tryied to upload file with size %d Bytes", inet_ntoa(cl_addr->sin_addr), file_req.fsize);
-    msg_stat.header.err_code = TWDC_ERR_FILE_SZ;
-    msg_stat.header.msg_type = TWDC_MSG_ERROR;
-    memcpy(msg_stat.data, &max_sz, sizeof(msg_stat.data));
-    send(cl_sock, &msg_stat, sizeof(msg_stat), 0x0);
+    msg.header.err_code = TWDC_ERR_FILE_SZ;
+    msg.header.msg_type = TWDC_MSG_ERROR;
+    memcpy(msg.data, &max_sz, sizeof(msg.data));
+    snd_data(cl_sock, (char *)&msg, sizeof(msg));
     return TWDC_ERR_FILE_SZ;
   }
   else {
-    msg_stat.header.err_code = TWDC_ERR_SUCCESS;
-    msg_stat.header.msg_type = TWDC_MSG_ERROR;
-    send(cl_sock, &msg_stat, sizeof(msg_stat), 0x0);
+    msg.header.err_code = TWDC_ERR_SUCCESS;
+    msg.header.msg_type = TWDC_MSG_ERROR;
+    snd_data(cl_sock, (char *)&msg, sizeof(msg));
   }
 
   writelog(0, "Info: Accepted file '%s' (%d bytes) from '%s'", file_req.fname, file_req.fsize, inet_ntoa(cl_addr->sin_addr));
+
+  * Receive and unzip the file *
+  while ( rcvbuf_len = recv(cl_sock, (char *)&rcvbuf, sizeof(rcvbuf), 0x0) ) {
+    if ( rcvbuf_len > 0 ) {
+      * TODO: receive data, check for data consistency *
+    }
+    else if ( rcvbuf_len < 0 ) {
+      * TODO: Print error message *
+    }
+    else {
+      * TODO: End of transfer? Check if filesize is what the client send. *
+    }
+  }*/
 
   return 0;
 }
