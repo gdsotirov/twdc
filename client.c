@@ -22,7 +22,7 @@
  * File: client.c
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: client.c,v 1.8 2005/05/08 15:43:35 gsotirov Exp $
+ * $Id: client.c,v 1.9 2005/05/09 20:36:08 gsotirov Exp $
  */
 
 #include <stdio.h>
@@ -37,6 +37,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include <libgen.h>
 
 /*#include <zlib.h>*/

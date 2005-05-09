@@ -22,8 +22,10 @@
  * File: server.c
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: server.c,v 1.10 2005/05/08 15:43:35 gsotirov Exp $
+ * $Id: server.c,v 1.11 2005/05/09 20:36:08 gsotirov Exp $
  */
+
+#define _GNU_SOURCE
 
 #include <stdio.h>
 #include <stdlib.h>
