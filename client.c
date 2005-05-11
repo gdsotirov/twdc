@@ -22,7 +22,7 @@
  * File: client.c
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: client.c,v 1.9 2005/05/09 20:36:08 gsotirov Exp $
+ * $Id: client.c,v 1.10 2005/05/11 21:23:56 gsotirov Exp $
  */
 
 #include <stdio.h>
@@ -54,7 +54,7 @@ static char * progname = NULL;
 void help(void);
 void version(void);
 void print_error(int errcd, int syserr, ...);
-int print_response(struct twdc_msg * msg_stat);
+int print_response(int8_t err_cd, struct twdc_msg * msg_stat);
 void hr_size(int size, char * hr_str, size_t hr_str_len);
 
 int main(int argc, char * argv[]) {
@@ -64,6 +64,7 @@ int main(int argc, char * argv[]) {
   struct sockaddr_in sock_addr;
   /* options */
   char fname[FNAME_LNGTH] = {0};
+  char fbname[FNAME_LNGTH] = {0};
   struct stat fstat;
   char hostnm[HOSTNM_LNGTH] = {0};
   char hostaddr_str[16] = {0};
@@ -81,20 +82,21 @@ int main(int argc, char * argv[]) {
   };
   int cl_pid = getpid();
   int filetosend = 0;
-  struct twdc_msg file_req;
-  struct twdc_msg msg_stat;
+  struct twdc_msg msg;
 
   progname = argv[0];
 
   while (1) {
     c = getopt_long(argc, argv, "f:h:p::vxy", cl_optns, NULL);
-    
+
     if ( c == -1 )
       break;
 
     switch ( c ) {
-      case 'f': if ( strlen(optarg) <= (FNAME_LNGTH - 1) )
+      case 'f': if ( strlen(optarg) <= (FNAME_LNGTH - 1) ) {
                   strncpy(fname, optarg, sizeof(fname));
+                  strncpy(fbname, basename(fname), sizeof(fbname));
+                }
                 else {
                   print_error(ERR_FNAME_TOO_LONG, 0, FNAME_LNGTH);
                   exit(ERR_FNAME_TOO_LONG);
@@ -124,7 +126,7 @@ int main(int argc, char * argv[]) {
     }
   }
 
-  if ( strlen(fname) == 0 ) {
+  if ( strlen(fname) == 0 && (strlen(fbname) == 0 || strcmp(fbname, "/") == 0 || strcmp(fbname, ".") == 0 || strcmp(fbname, "..")) ) {
     print_error(ERR_NO_FILE_GIVEN, 0);
     help();
     exit(ERR_NO_FILE_GIVEN);
@@ -171,42 +173,44 @@ int main(int argc, char * argv[]) {
     printf("%s[%d]: Connected to '%s:%hd' (%s:%hd)\n", progname, cl_pid, hostnm, port, hostaddr_str, port);
 
   /* Request file upload to the server */
-  make_file_msg(&file_req, basename(fname), fstat.st_size);
-  
+  make_file_msg(&msg, fbname, fstat.st_size);
+
   if ( verbose ) {
     char hr_fsize_str[10] = {0};
-    hr_size(file_req.body.file.fsize, hr_fsize_str, sizeof(hr_fsize_str));
+    hr_size(fstat.st_size, hr_fsize_str, sizeof(hr_fsize_str));
     printf("%s[%d]: Requesting upload of file '%s' with size %d Bytes (%s)...\n", progname, cl_pid, fname, (int)fstat.st_size, hr_fsize_str);
   }
 
-  if ( snd_data(sock, (char *)&file_req, sizeof(file_req)) != 0 ) {
+  if ( snd_data(sock, (char *)&msg, TWDC_MSG_FILE_SZ) != 0 ) {
     print_error(ERR_SND_DATA, errno, hostnm, port);
     shutdown(sock, SHUT_RDWR);
     close(sock);
     exit(ERR_SND_DATA);
   }
-  
+
   /* Get and analyze the server response */
-  if ( rcv_data(sock, (char *)&msg_stat, sizeof(msg_stat)) != 0 ) {
+  if ( rcv_data(sock, (char *)&msg, TWDC_MSG_ERR_SZ) != 0 ) {
     print_error(ERR_RCV_DATA, errno, hostnm, port);
     shutdown(sock, SHUT_RDWR);
     close(sock);
     exit(ERR_RCV_DATA);
   }
 
-  if ( msg_stat.header.msg_type == TWDC_MSG_ERROR ) {
-    shutdown(sock, SHUT_RDWR);
-    close(sock);
-    exit(print_response(&msg_stat)); 
-  }
-  else {
-    if ( verbose ) 
-      printf("%s[%d]: Server '%s:%hd' accepted file '%s'.\n", progname, cl_pid, hostnm, port, fname);
+  if ( get_msg_type((struct twdc_msg_head *)&msg) == TWDC_MSG_ERROR ) {
+    int8_t err_cd = 0;
 
-    /* TODO: Send file here */
-
+    read_err_msg(&msg, &err_cd);
+    if ( err_cd == TWDC_ERR_OK ) {
+      if ( verbose )
+        printf("%s[%d]: Server '%s:%hd' accepted file '%s'.\n", progname, cl_pid, hostnm, port, fname);
+    }
+    else {
+      shutdown(sock, SHUT_RDWR);
+      close(sock);
+      exit(print_response(err_cd, &msg));
+    }
   }
-  
+
   shutdown(sock, SHUT_RDWR);
   close(sock);
 
@@ -317,15 +321,16 @@ void print_error(int errcd, int syserr, ...) {
 /* Function    : print_response
  * Description : Print the server response to the client terminal
  */
-int print_response(struct twdc_msg * msg_err) {
-  switch ( msg_err->body.error.err_code ) {
-    case TWDC_ERR_UNEXPCTD_MSG : 
+int print_response(int8_t err_cd, struct twdc_msg * msg_err) {
+  switch ( err_cd ) {
+    case TWDC_ERR_UNEXPCTD_MSG :
       print_error(ERR_SRV_UNEXPCTD, 0);
       return ERR_SRV_UNEXPCTD;
     case TWDC_ERR_FILE_SZ : {
-        int max_sz = *(int *)&msg_err->body.error.data;
+        int max_sz = 0;
         char max_sz_str[10] = {0};
 
+        read_err_msg(&msg_err, NULL, &max_sz);
         hr_size(max_sz, max_sz_str, sizeof(max_sz_str));
         print_error(ERR_SRV_FILE_SZ, 0, max_sz, max_sz_str);
       }

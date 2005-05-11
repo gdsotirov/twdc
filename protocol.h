@@ -23,15 +23,24 @@
  * File: protocol.h
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: protocol.h,v 1.5 2005/05/08 15:42:17 gsotirov Exp $
+ * $Id: protocol.h,v 1.6 2005/05/11 21:23:56 gsotirov Exp $
  */
 
 #ifndef __TWDC_PROTOCOL_H__
 #define __TWDC_PROTOCOL_H__
 
+#include <stdint.h>
+
 /* Protocol version */
 #define TWDC_PROTO_VER_MAJOR 0
 #define TWDC_PROTO_VER_MINOR 1
+
+/* Check types */
+#define CT_EXACT  0x0
+#define CT_GT     0x1
+#define CT_GTOREQ 0x2
+#define CT_LT     0x3
+#define CT_LTOREQ 0x4
 
 /* The communication port */
 #define PORT 9919
@@ -46,51 +55,93 @@
 #define TWDC_MSG_DATA     4
 
 /* Error codes */
-#define TWDC_ERR_SUCCESS      0
-#define TWDC_ERR_UNEXPCTD_MSG -101
-#define TWDC_ERR_FILE_SZ      -102
+#define TWDC_ERR_OK            0
+#define TWDC_ERR_PROTO_VER    -101
+#define TWDC_ERR_UNEXPCTD_MSG -102
+#define TWDC_ERR_FILE_SZ      -103
+
+#ifdef __GNUC__
+#define DI_PACKET __attribute__ ((packed, aligned(1)))
+#else
+#define DI_PACKET
+#endif
+
+/* Pack and align all data structures on the byte boundary to minimize memory usage and transfered data */
+#if defined(_MSC_VER) || defined(__WATCOMC__) || ( defined(__BORLANDC__) && __BORLANDC__ > 0x520 )
+#pragma pack(1)
+#endif
+
+#if defined(__BORLANDC__) && __BORLANDC__ <= 0x520
+#pragma option -a1
+#endif
 
 /* Protocol message */
 struct twdc_msg_head {
-  char msg_type;
-  char ver_major;
-  char ver_minor;
-};
+  uint8_t msg_type;
+  uint8_t ver_major;
+  uint8_t ver_minor;
+} DI_PACKET;
+
+#define TWDC_MSG_HEAD_SZ sizeof(struct twdc_msg_head)
 
 /* Error message */
 struct twdc_msg_err {
-  char err_code;
-  char data[4];
-};
+  int8_t err_code;
+  char   data[4];
+} DI_PACKET;
 
 /* File request message - file name + file size */
 struct twdc_msg_file {
-  char     fname[256];
-  long int fsize;
-};
+  char   fname[256];
+  size_t fsize;
+} DI_PACKET;
 
 /* Data message - header + data */
 struct twdc_msg_data {
   char buf[PMSG_LNGTH];
-};
+} DI_PACKET;
 
 /* Message body type */
 union twdc_data {
-  struct twdc_msg_err  error;
-  struct twdc_msg_file file;
-  struct twdc_msg_data data;
+  struct twdc_msg_err  error DI_PACKET;
+  struct twdc_msg_file file  DI_PACKET;
+  struct twdc_msg_data data  DI_PACKET;
 };
+
 
 /* General message */
 struct twdc_msg {
-  struct twdc_msg_head header;
-  union  twdc_data     body;
+  struct twdc_msg_head header DI_PACKET;
+  union  twdc_data     body   DI_PACKET;
 };
 
+#define TWDC_MSG_SZ sizeof(struct twdc_msg)
+#define TWDC_MSG_ERR_SZ  TWDC_MSG_HEAD_SZ + sizeof(struct twdc_msg_err)
+#define TWDC_MSG_FILE_SZ TWDC_MSG_HEAD_SZ + sizeof(struct twdc_msg_file)
+#define TWDC_MSG_DATA_SZ TWDC_MSG_HEAD_SZ + sizeof(struct twdc_msg_data)
+
+#if defined(_MSC_VER) || defined(__WATCOMC__) || ( defined(__BORLANDC__) && __BORLANDC__ > 0x520 ) || defined(__INTELC__)
+#pragma pack()
+#endif
+
+#if defined(__BORLANDC__) && __BORLANDC__ <= 0x520
+#pragma option -a.
+#endif
+
 /* Protocol interface */
-void make_err_msg(struct twdc_msg * msg, char err_cd);
-void make_file_msg(struct twdc_msg * msg, char * fname, long int fsize);
-void make_data_msg(struct twdc_msg * msg, char * buf, long int buf_sz);
+
+int get_msg_type(struct twdc_msg_head * msg);
+
+int check_version_maj(struct twdc_msg_head * msg, uint8_t ver_major, int check_type);
+int check_version_min(struct twdc_msg_head * msg, uint8_t ver_minor, int check_type);
+
+void make_err_msg(struct twdc_msg * msg, int8_t err_cd, ...);
+void make_file_msg(struct twdc_msg * msg, char * fname, size_t fsize);
+void make_data_msg(struct twdc_msg * msg, char * buf, size_t buf_sz);
+
+void read_err_msg(struct twdc_msg * msg, int8_t * err_cd, ...);
+void read_file_msg(struct twdc_msg * msg, char * fname, size_t fname_sz, size_t * fsize);
+void read_data_msg(struct twdc_msg * msg, char * buf, size_t * buf_sz);
 
 #endif /* __TWDC_PROTOCOL_H__ */
 

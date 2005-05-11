@@ -22,7 +22,7 @@
  * File: server.c
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: server.c,v 1.11 2005/05/09 20:36:08 gsotirov Exp $
+ * $Id: server.c,v 1.12 2005/05/11 21:23:56 gsotirov Exp $
  */
 
 #define _GNU_SOURCE
@@ -216,49 +216,55 @@ int init_addr(char * host_nm, size_t host_nm_sz, struct sockaddr_in * addr) {
  * Return      : On success the function will return zero.
  */
 int service(int cl_sock, struct sockaddr_in * cl_addr) {
-  /*struct twdc_msg_file file_req;
-  struct twdc_msg_data rcvbuf;
-  int rcvbuf_len = 0;
+  char end_comm = 0;
+  char fname[256] = {0};
+  /*char fname_full[256] = {0};*/
+  size_t fsize = 0;
   struct twdc_msg msg;
-  
-  * File request *
-  if ( rcv_data(cl_sock, (char *)&file_req, sizeof(file_req)) != 0 ) {
-    msg.header.error.err_code = TWDC_ERR_UNEXPCTD_MSG;
-    msg.header.msg_type = TWDC_MSG_ERROR;
-    snd_data(cl_sock, (char *)&msg, sizeof(msg));
-    return TWDC_ERR_UNEXPCTD_MSG;
-  }
 
-  * Deny upload of files bigger than the given limit *
-  if ( file_req.fsize > MAXFILESIZE ) {
-    int max_sz = MAXFILESIZE;
-    writelog(0, "Error: Client '%s' tryied to upload file with size %d Bytes", inet_ntoa(cl_addr->sin_addr), file_req.fsize);
-    msg.header.err_code = TWDC_ERR_FILE_SZ;
-    msg.header.msg_type = TWDC_MSG_ERROR;
-    memcpy(msg.data, &max_sz, sizeof(msg.data));
-    snd_data(cl_sock, (char *)&msg, sizeof(msg));
-    return TWDC_ERR_FILE_SZ;
-  }
-  else {
-    msg.header.err_code = TWDC_ERR_SUCCESS;
-    msg.header.msg_type = TWDC_MSG_ERROR;
-    snd_data(cl_sock, (char *)&msg, sizeof(msg));
-  }
-
-  writelog(0, "Info: Accepted file '%s' (%d bytes) from '%s'", file_req.fname, file_req.fsize, inet_ntoa(cl_addr->sin_addr));
-
-  * Receive and unzip the file *
-  while ( rcvbuf_len = recv(cl_sock, (char *)&rcvbuf, sizeof(rcvbuf), 0x0) ) {
-    if ( rcvbuf_len > 0 ) {
-      * TODO: receive data, check for data consistency *
+  do {
+    /* Read a message header */
+    if ( rcv_data(cl_sock, (char *)&msg, TWDC_MSG_HEAD_SZ) != 0 ) {
+      end_comm = 1;
+      return -1;
     }
-    else if ( rcvbuf_len < 0 ) {
-      * TODO: Print error message *
+
+    /* Unsupported protocol version */
+    if ( check_version_maj((struct twdc_msg_head *)&msg, TWDC_PROTO_VER_MAJOR, CT_GTOREQ) ) {
+      end_comm = 1;
+      make_err_msg(&msg, TWDC_ERR_PROTO_VER);
+      snd_data(cl_sock, (char *)&msg, TWDC_MSG_ERR_SZ);
     }
     else {
-      * TODO: End of transfer? Check if filesize is what the client send. *
+      make_err_msg(&msg, TWDC_ERR_OK);
+      snd_data(cl_sock, (char *)&msg, TWDC_MSG_ERR_SZ);
     }
-  }*/
+
+    switch ( get_msg_type(&msg.header) ) {
+      case TWDC_MSG_FILE_REQ:
+        if ( rcv_data(cl_sock, (char *)(&msg + TWDC_MSG_HEAD_SZ), TWDC_MSG_FILE_SZ) != 0 )
+          end_comm = 1;
+        read_file_msg(&msg, fname, sizeof(fname), &fsize);
+        /* Deny upload of files bigger than the hardcoded limit */
+        if ( fsize > MAXFILESIZE ) {
+          writelog(0, "Error: Client '%s' tryed to upload file with size %d Bytes", inet_ntoa(cl_addr->sin_addr), fsize);
+          make_err_msg(&msg, TWDC_ERR_FILE_SZ, MAXFILESIZE);
+          snd_data(cl_sock, (char *)&msg, TWDC_MSG_ERR_SZ);
+        }
+        else {
+          writelog(0, "Info: Accepted file '%s' (%d bytes) from '%s'", fname, fsize, inet_ntoa(cl_addr->sin_addr));
+          make_err_msg(&msg, TWDC_ERR_OK);
+          snd_data(cl_sock, (char *)&msg, TWDC_MSG_ERR_SZ);
+        }
+        break;
+      case TWDC_MSG_ERROR:
+        writelog(0, "Info: Error");
+        break;
+      case TWDC_MSG_DATA:
+        writelog(0, "Info: Data transfer");
+        break;
+    }
+  } while ( end_comm );
 
   return 0;
 }
