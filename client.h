@@ -22,7 +22,7 @@
  * File: client.h
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: client.h,v 1.5 2005/05/12 17:57:09 gsotirov Exp $
+ * $Id: client.h,v 1.6 2005/05/12 20:22:26 gsotirov Exp $
  */
 
 #ifndef __TWDC_CLIENT_H__
@@ -35,8 +35,10 @@
 #define ERR_FNAME_TOO_LONG   -100
 #define ERR_HOSTNM_TOO_LONG  -101
 #define ERR_NO_FILE_GIVEN    -102
-#define ERR_CNT_RSLVE_HOST   -103
-#define ERR_INVLD_AF         -104
+#define ERR_INVLD_FILE_NM    -103
+#define ERR_NO_HOST_GIVEN    -104
+#define ERR_CNT_RSLVE_HOST   -105
+#define ERR_INVLD_AF         -106
 #define ERR_CNT_RD_FILE      -201
 #define ERR_CNT_GET_FILE_SZ  -202
 #define ERR_CNT_OPEN_SOCK    -203
@@ -55,6 +57,8 @@
 #define ERR_FNAME_TOO_LONG_STR  "File name too long. The length should not exceed %d characters"
 #define ERR_HOSTNM_TOO_LONG_STR "Host name too long. The length should not exceed %d characters"
 #define ERR_NO_FILE_GIVEN_STR   "Please, specify file to upload"
+#define ERR_INVLD_FILE_NM_STR   "Invalid file name '%s'"
+#define ERR_NO_HOST_GIVEN_STR   "Please, specify server host"
 #define ERR_CNT_RSLVE_HOST_STR  "Can not resolve host '%s'"
 #define ERR_INVLD_AF_STR        "Client does not support the address family of the local host"
 #define ERR_CNT_RD_FILE_STR     "Can not read from file '%s'"
