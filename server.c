@@ -22,7 +22,7 @@
  * File: server.c
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: server.c,v 1.13 2005/05/12 18:01:12 gsotirov Exp $
+ * $Id: server.c,v 1.14 2005/05/12 19:13:26 gsotirov Exp $
  */
 
 #define _GNU_SOURCE
@@ -231,10 +231,6 @@ int service(int cl_sock, struct sockaddr_in * cl_addr) {
     if ( !check_version_maj((struct twdc_msg_head *)&msg, TWDC_PROTO_VER_MAJOR, CT_GTOREQ) ) {
       end_comm = 1;
       make_err_msg(&msg, TWDC_ERR_PROTO_VER, TWDC_PROTO_VER_MAJOR, TWDC_PROTO_VER_MINOR);
-      snd_data(cl_sock, (char *)&msg, TWDC_MSG_ERR_SZ);
-    }
-    else {
-      make_err_msg(&msg, TWDC_ERR_OK);
       snd_data(cl_sock, (char *)&msg, TWDC_MSG_ERR_SZ);
     }
 
