@@ -22,7 +22,7 @@
  * File: client.c
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: client.c,v 1.11 2005/05/12 17:58:25 gsotirov Exp $
+ * $Id: client.c,v 1.12 2005/05/12 20:22:56 gsotirov Exp $
  */
 
 #include <stdio.h>
@@ -126,14 +126,25 @@ int main(int argc, char * argv[]) {
     }
   }
 
-  if ( strlen(fname) == 0 && (strlen(fbname) == 0 || strcmp(fbname, "/") == 0 || strcmp(fbname, ".") == 0 || strcmp(fbname, "..")) ) {
+  if ( strlen(fname) == 0 ) {
     print_error(ERR_NO_FILE_GIVEN, 0);
     help();
     exit(ERR_NO_FILE_GIVEN);
   }
 
+  if ( !strcmp(fbname, "/") || !strcmp(fbname, ".") || !strcmp(fbname,"..") ) {
+    print_error(ERR_INVLD_FILE_NM, 0, fbname);
+    exit(ERR_INVLD_FILE_NM);
+  }
+
+  if ( strlen(hostnm) == 0 ) {
+    print_error(ERR_NO_HOST_GIVEN, 0);
+    help();
+    exit(ERR_NO_HOST_GIVEN);
+  }
+
   if ((host_ent = gethostbyname(hostnm)) == NULL ) {
-    print_error(ERR_CNT_RSLVE_HOST, errno, hostnm);
+    print_error(ERR_CNT_RSLVE_HOST, h_errno, hostnm);
     exit(ERR_CNT_RSLVE_HOST);
   }
 
@@ -261,6 +272,12 @@ void print_error(const int errcd, const int syserr, ...) {
     case ERR_NO_FILE_GIVEN :
       strncpy(errcd_fmt, ERR_NO_FILE_GIVEN_STR, sizeof(errcd_fmt));
       break;
+    case ERR_INVLD_FILE_NM :
+      strncpy(errcd_fmt, ERR_INVLD_FILE_NM_STR, sizeof(errcd_fmt));
+      break;
+    case ERR_NO_HOST_GIVEN :
+      strncpy(errcd_fmt, ERR_NO_HOST_GIVEN_STR, sizeof(errcd_fmt));
+      break;
     case ERR_CNT_RSLVE_HOST :
       strncpy(errcd_fmt, ERR_CNT_RSLVE_HOST_STR, sizeof(errcd_fmt));
       break;
@@ -305,16 +322,19 @@ void print_error(const int errcd, const int syserr, ...) {
   }
 
   if ( errcd < 0 )
-    sprintf(msg_fmt, "%s[%d]: Error: %s ", progname, getpid(), errcd_fmt);
+    sprintf(msg_fmt, "%s[%d]: Error: %s", progname, getpid(), errcd_fmt);
   else if ( errcd > 0 )
-    sprintf(msg_fmt, "%s[%d]: Warning: %s ", progname, getpid(), errcd_fmt);
+    sprintf(msg_fmt, "%s[%d]: Warning: %s", progname, getpid(), errcd_fmt);
 
   va_start(v_lst, syserr);
   vfprintf(stderr, msg_fmt, v_lst);
   va_end(v_lst);
 
   if ( syserr != 0 )
-    perror("System error");
+    if ( errcd == ERR_CNT_RSLVE_HOST )
+      herror("; Resolve error");
+    else
+      perror("; System error");
   else
     fprintf(stderr, "\n");
 }
