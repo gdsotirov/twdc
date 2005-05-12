@@ -1,5 +1,5 @@
 /* TWDC - a client/server application for the Tumbleweed Developer's Contest
- * Copyright (C) 2005 Georgi D. Sotirov 
+ * Copyright (C) 2005 Georgi D. Sotirov
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -22,7 +22,7 @@
  * File: client.h
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: client.h,v 1.4 2005/05/03 18:51:21 gsotirov Exp $
+ * $Id: client.h,v 1.5 2005/05/12 17:57:09 gsotirov Exp $
  */
 
 #ifndef __TWDC_CLIENT_H__
@@ -44,8 +44,9 @@
 #define ERR_SND_DATA         -205
 #define ERR_RCV_DATA         -206
 #define ERR_SRV_UNKNWN       -301
-#define ERR_SRV_UNEXPCTD     -302
-#define ERR_SRV_FILE_SZ      -303
+#define ERR_SRV_PROTO_VER    -302
+#define ERR_SRV_UNEXPCTD     -303
+#define ERR_SRV_FILE_SZ      -304
 
 /* client warning codes */
 #define WARN_ZERO_FILE        100
@@ -63,6 +64,7 @@
 #define ERR_SND_DATA_STR        "While sending data to '%s:%hd'"
 #define ERR_RCV_DATA_STR        "While receiving data from '%s:%hd'"
 #define ERR_SRV_UNKNWN_STR      "Server: Unknown error"
+#define ERR_SRV_PROTO_VER_STR   "Server: Your client protocol version %d.%d is not supported. Protocol version should be <= %d.%d"
 #define ERR_SRV_UNEXPCTD_STR    "Server: Unexpected message"
 #define ERR_SRV_FILE_SZ_STR     "Server: Sorry. File size too long. It should not exceed %d Bytes (%s)"
 
