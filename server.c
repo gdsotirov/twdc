@@ -1,5 +1,5 @@
 /* TWDC - a client/server application for the Tumbleweed Developer's Contest
- * Copyright (C) 2005 Georgi D. Sotirov 
+ * Copyright (C) 2005 Georgi D. Sotirov
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -22,7 +22,7 @@
  * File: server.c
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: server.c,v 1.12 2005/05/11 21:23:56 gsotirov Exp $
+ * $Id: server.c,v 1.13 2005/05/12 18:01:12 gsotirov Exp $
  */
 
 #define _GNU_SOURCE
@@ -46,8 +46,8 @@
 #include "data.h"
 #include "server.h"
 
-int writelog(int err_num, char * cl_msg_fmt, ...);
-int init_addr(char * host_nm, size_t host_nm_sz, struct sockaddr_in * addr);
+int writelog(const int err_num, const char * cl_msg_fmt, ...);
+int init_addr(char * host_nm, const size_t host_nm_sz, struct sockaddr_in * addr);
 int service(int cl_sock, struct sockaddr_in * cl_addr);
 
 int main(int argc, char * argv[]) {
@@ -147,7 +147,7 @@ int main(int argc, char * argv[]) {
  * Input       : err_num - the global variable errno
  *               msg     - custom error message to prepend befor the sys error
  */
-int writelog(int err_num, char * cl_msg_fmt, ...) {
+int writelog(const int err_num, const char * cl_msg_fmt, ...) {
   FILE * logfp = NULL;
   static char log_fname[256] = {0};
   time_t now;
@@ -157,7 +157,7 @@ int writelog(int err_num, char * cl_msg_fmt, ...) {
   va_list v_lst;
   char * sys_err = NULL;
 
-  if (strlen(log_fname) == 0 ) 
+  if (strlen(log_fname) == 0 )
     sprintf(log_fname, LOGFILE, getpid());
 
   if ( (logfp = fopen(log_fname, "a+")) == NULL ) {
@@ -188,7 +188,7 @@ int writelog(int err_num, char * cl_msg_fmt, ...) {
  * Return      : On sucess the function return 0. Any other value indicates
  *               error.
  */
-int init_addr(char * host_nm, size_t host_nm_sz, struct sockaddr_in * addr) {
+int init_addr(char * host_nm, const size_t host_nm_sz, struct sockaddr_in * addr) {
   struct hostent * host_ent = NULL;
 
   if ( addr == NULL )
@@ -224,15 +224,13 @@ int service(int cl_sock, struct sockaddr_in * cl_addr) {
 
   do {
     /* Read a message header */
-    if ( rcv_data(cl_sock, (char *)&msg, TWDC_MSG_HEAD_SZ) != 0 ) {
+    if ( rcv_data(cl_sock, (char *)&msg, TWDC_MSG_HEAD_SZ) != 0 )
       end_comm = 1;
-      return -1;
-    }
 
     /* Unsupported protocol version */
-    if ( check_version_maj((struct twdc_msg_head *)&msg, TWDC_PROTO_VER_MAJOR, CT_GTOREQ) ) {
+    if ( !check_version_maj((struct twdc_msg_head *)&msg, TWDC_PROTO_VER_MAJOR, CT_GTOREQ) ) {
       end_comm = 1;
-      make_err_msg(&msg, TWDC_ERR_PROTO_VER);
+      make_err_msg(&msg, TWDC_ERR_PROTO_VER, TWDC_PROTO_VER_MAJOR, TWDC_PROTO_VER_MINOR);
       snd_data(cl_sock, (char *)&msg, TWDC_MSG_ERR_SZ);
     }
     else {
@@ -241,13 +239,16 @@ int service(int cl_sock, struct sockaddr_in * cl_addr) {
     }
 
     switch ( get_msg_type(&msg.header) ) {
+      /*
+       * Process File Request Message
+       */
       case TWDC_MSG_FILE_REQ:
         if ( rcv_data(cl_sock, (char *)(&msg + TWDC_MSG_HEAD_SZ), TWDC_MSG_FILE_SZ) != 0 )
           end_comm = 1;
         read_file_msg(&msg, fname, sizeof(fname), &fsize);
         /* Deny upload of files bigger than the hardcoded limit */
         if ( fsize > MAXFILESIZE ) {
-          writelog(0, "Error: Client '%s' tryed to upload file with size %d Bytes", inet_ntoa(cl_addr->sin_addr), fsize);
+          writelog(0, "Error: Rejected file with size %d Bytes from '%s'", fsize, inet_ntoa(cl_addr->sin_addr));
           make_err_msg(&msg, TWDC_ERR_FILE_SZ, MAXFILESIZE);
           snd_data(cl_sock, (char *)&msg, TWDC_MSG_ERR_SZ);
         }
@@ -257,14 +258,22 @@ int service(int cl_sock, struct sockaddr_in * cl_addr) {
           snd_data(cl_sock, (char *)&msg, TWDC_MSG_ERR_SZ);
         }
         break;
+      /*
+       * Process Error Message
+       */
       case TWDC_MSG_ERROR:
+        rcv_data(cl_sock, (char *)(&msg + TWDC_MSG_HEAD_SZ), TWDC_MSG_ERR_SZ);
         writelog(0, "Info: Error");
         break;
+      /*
+       * Process Data Message
+       */
       case TWDC_MSG_DATA:
+        rcv_data(cl_sock, (char *)(&msg + TWDC_MSG_HEAD_SZ), TWDC_MSG_DATA_SZ);
         writelog(0, "Info: Data transfer");
         break;
     }
-  } while ( end_comm );
+  } while ( end_comm == 0 );
 
   return 0;
 }
