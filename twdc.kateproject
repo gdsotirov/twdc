@@ -1,0 +1,7 @@
+[Project Dir]
+Dirs=
+Files=client.c/client.h/COPYING/data.c/data.h/globals.h/Makefile/protocol.c/protocol.h/README/server.c/server.h/TASK
+
+[Project File]
+Name=twdc
+Type=Default
