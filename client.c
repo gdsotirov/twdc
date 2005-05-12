@@ -1,5 +1,5 @@
 /* TWDC - a client/server application for the Tumbleweed Developer's Contest
- * Copyright (C) 2005 Georgi D. Sotirov 
+ * Copyright (C) 2005 Georgi D. Sotirov
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -22,7 +22,7 @@
  * File: client.c
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: client.c,v 1.10 2005/05/11 21:23:56 gsotirov Exp $
+ * $Id: client.c,v 1.11 2005/05/12 17:58:25 gsotirov Exp $
  */
 
 #include <stdio.h>
@@ -53,9 +53,9 @@ static char * progname = NULL;
 /* prototypes */
 void help(void);
 void version(void);
-void print_error(int errcd, int syserr, ...);
-int print_response(int8_t err_cd, struct twdc_msg * msg_stat);
-void hr_size(int size, char * hr_str, size_t hr_str_len);
+void print_error(const int errcd, const int syserr, ...);
+int print_response(const struct twdc_msg * msg_stat);
+void hr_size(const int size, char * hr_str, const size_t hr_str_len);
 
 int main(int argc, char * argv[]) {
   int c = 0;
@@ -138,7 +138,7 @@ int main(int argc, char * argv[]) {
   }
 
   if ( (filetosend = open(fname, O_RDONLY)) == -1 ) {
-    print_error(ERR_CNT_RD_FILE, errno, fname); 
+    print_error(ERR_CNT_RD_FILE, errno, fname);
     exit(ERR_CNT_RD_FILE);
   }
 
@@ -197,17 +197,14 @@ int main(int argc, char * argv[]) {
   }
 
   if ( get_msg_type((struct twdc_msg_head *)&msg) == TWDC_MSG_ERROR ) {
-    int8_t err_cd = 0;
-
-    read_err_msg(&msg, &err_cd);
-    if ( err_cd == TWDC_ERR_OK ) {
+    if ( get_err_code(&msg) == TWDC_ERR_OK ) {
       if ( verbose )
         printf("%s[%d]: Server '%s:%hd' accepted file '%s'.\n", progname, cl_pid, hostnm, port, fname);
     }
     else {
       shutdown(sock, SHUT_RDWR);
       close(sock);
-      exit(print_response(err_cd, &msg));
+      exit(print_response(&msg));
     }
   }
 
@@ -248,7 +245,7 @@ void version(void) {
 /* Function    : print_error
  * Description : General routine for print error messages
  */
-void print_error(int errcd, int syserr, ...) {
+void print_error(const int errcd, const int syserr, ...) {
   char errcd_fmt[256] = {0};
   char msg_fmt[512] = {0};
   va_list v_lst;
@@ -291,6 +288,9 @@ void print_error(int errcd, int syserr, ...) {
     case ERR_SRV_UNKNWN :
       strncpy(errcd_fmt, ERR_SRV_UNKNWN_STR, sizeof(errcd_fmt));
       break;
+    case ERR_SRV_PROTO_VER :
+      strncpy(errcd_fmt, ERR_SRV_PROTO_VER_STR, sizeof(errcd_fmt));
+      break;
     case ERR_SRV_UNEXPCTD :
       strncpy(errcd_fmt, ERR_SRV_UNEXPCTD_STR, sizeof(errcd_fmt));
       break;
@@ -306,13 +306,14 @@ void print_error(int errcd, int syserr, ...) {
 
   if ( errcd < 0 )
     sprintf(msg_fmt, "%s[%d]: Error: %s ", progname, getpid(), errcd_fmt);
-  else if ( errcd > 0 ) 
+  else if ( errcd > 0 )
     sprintf(msg_fmt, "%s[%d]: Warning: %s ", progname, getpid(), errcd_fmt);
 
   va_start(v_lst, syserr);
   vfprintf(stderr, msg_fmt, v_lst);
+  va_end(v_lst);
 
-  if ( errno != 0 )
+  if ( syserr != 0 )
     perror("System error");
   else
     fprintf(stderr, "\n");
@@ -321,16 +322,23 @@ void print_error(int errcd, int syserr, ...) {
 /* Function    : print_response
  * Description : Print the server response to the client terminal
  */
-int print_response(int8_t err_cd, struct twdc_msg * msg_err) {
-  switch ( err_cd ) {
-    case TWDC_ERR_UNEXPCTD_MSG :
+int print_response(const struct twdc_msg * msg_err) {
+  switch ( get_err_code(msg_err) ) {
+    case TWDC_ERR_UNEXPCTD_MSG:
       print_error(ERR_SRV_UNEXPCTD, 0);
       return ERR_SRV_UNEXPCTD;
-    case TWDC_ERR_FILE_SZ : {
+    case TWDC_ERR_PROTO_VER: {
+        int8_t srv_ver_maj = 0, srv_ver_min = 0;
+
+        get_ver_info((struct twdc_msg_head *)&msg_err, &srv_ver_maj, &srv_ver_min);
+        print_error(ERR_SRV_PROTO_VER, TWDC_PROTO_VER_MAJOR, TWDC_PROTO_VER_MINOR, srv_ver_maj, srv_ver_min);
+      }
+      return ERR_SRV_PROTO_VER;
+    case TWDC_ERR_FILE_SZ: {
         int max_sz = 0;
         char max_sz_str[10] = {0};
 
-        read_err_msg(&msg_err, NULL, &max_sz);
+        read_err_msg(msg_err, NULL, &max_sz);
         hr_size(max_sz, max_sz_str, sizeof(max_sz_str));
         print_error(ERR_SRV_FILE_SZ, 0, max_sz, max_sz_str);
       }
@@ -344,11 +352,11 @@ int print_response(int8_t err_cd, struct twdc_msg * msg_err) {
 /* Function    : hr_size
  * Description : Human readable representation of file size
  */
-void hr_size(int size, char * hr_str, size_t hr_str_len) {
+void hr_size(const int size, char * hr_str, const size_t hr_str_len) {
   char * sz_arr[] = {"B ", "KB", "MB", "GB", "TB", "PB", "EB"};
   double sz = size;
   int i = 0;
-  
+
   while ( sz > 1000 ) {
     ++i;
     sz /= 1024;
