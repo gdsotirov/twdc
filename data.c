@@ -1,5 +1,5 @@
 /* TWDC - a client/server application for the Tumbleweed Developer's Contest
- * Copyright (C) 2005 Georgi D. Sotirov 
+ * Copyright (C) 2005 Georgi D. Sotirov
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -22,7 +22,7 @@
  * File: data.c
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: data.c,v 1.1 2005/05/08 15:42:57 gsotirov Exp $
+ * $Id: data.c,v 1.2 2005/05/13 17:32:36 gsotirov Exp $
  */
 
 #include <unistd.h>
@@ -73,17 +73,18 @@ int write_data(int fd, char * buf, size_t buf_len) {
 }
 
 /* Function    : rcv_data
- * Description : Receive data from a socket until the passed buffer gets full
+ * Description : Receive data from a stream socket until the passed buffer gets full
  * Input       : sock - socket descriptor
  *               buf - the buffer to read in
  *               buf_len - the length of the buffer
+ *               flags - same flags as in recv(2) function
  */
-int rcv_data(int sock, char * buf, size_t buf_len) {
+int rcv_data(int sock, char * buf, size_t buf_len, int flags) {
   size_t tr = 0; /* total received */
   size_t br = 0; /* bytes received at once */
 
   while ( tr < buf_len) {
-    if ( (br = recv(sock, buf, buf_len, 0x0)) > 0 ) {
+    if ( (br = recv(sock, buf, buf_len, flags)) > 0 ) {
       tr += br;
       buf += br;
     }
@@ -99,17 +100,18 @@ int rcv_data(int sock, char * buf, size_t buf_len) {
  * Input       : sock - socket descriptor
  *               buf - the buffer to send
  *               buf_len - the length of the buffer
+ *               flags - same flags as in recv(2) function
  */
-int snd_data(int sock, char * buf, size_t buf_len) {
+int snd_data(int sock, char * buf, size_t buf_len, int flags) {
   size_t ts = 0; /* total send */
   size_t bs = 0; /* bytes send at once */
 
   while ( ts < buf_len) {
-    if ( (bs = send(sock, buf, buf_len, 0x0)) > 0 ) {
+    if ( (bs = send(sock, buf, buf_len, flags)) > 0 ) {
       ts += bs;
       buf += bs;
     }
-    else if ( bs < 0 ) 
+    else if ( bs < 0 )
       return -1;
   }
 
