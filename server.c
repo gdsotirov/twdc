@@ -22,7 +22,7 @@
  * File: server.c
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: server.c,v 1.14 2005/05/12 19:13:26 gsotirov Exp $
+ * $Id: server.c,v 1.15 2005/05/13 17:33:57 gsotirov Exp $
  */
 
 #define _GNU_SOURCE
@@ -224,14 +224,22 @@ int service(int cl_sock, struct sockaddr_in * cl_addr) {
 
   do {
     /* Read a message header */
-    if ( rcv_data(cl_sock, (char *)&msg, TWDC_MSG_HEAD_SZ) != 0 )
+    if ( rcv_data(cl_sock, (char *)&msg, TWDC_MSG_HEAD_SZ, MSG_PEEK) != 0 ) {
       end_comm = 1;
+      break;
+    }
 
     /* Unsupported protocol version */
     if ( !check_version_maj((struct twdc_msg_head *)&msg, TWDC_PROTO_VER_MAJOR, CT_GTOREQ) ) {
+      int8_t ver_maj = 0;
+      int8_t ver_min = 0;
+
       end_comm = 1;
+      get_ver_info((struct twdc_msg_head *)&msg, &ver_maj, &ver_min);
+      writelog(0, "Error: Rejected client '%s' because of unsuported protocol version %d.%d", inet_ntoa(cl_addr->sin_addr), ver_maj, ver_min);
       make_err_msg(&msg, TWDC_ERR_PROTO_VER, TWDC_PROTO_VER_MAJOR, TWDC_PROTO_VER_MINOR);
-      snd_data(cl_sock, (char *)&msg, TWDC_MSG_ERR_SZ);
+      snd_data(cl_sock, (char *)&msg, TWDC_MSG_ERR_FULL_SZ, 0x0);
+      break;
     }
 
     switch ( get_msg_type(&msg.header) ) {
@@ -239,33 +247,36 @@ int service(int cl_sock, struct sockaddr_in * cl_addr) {
        * Process File Request Message
        */
       case TWDC_MSG_FILE_REQ:
-        if ( rcv_data(cl_sock, (char *)(&msg + TWDC_MSG_HEAD_SZ), TWDC_MSG_FILE_SZ) != 0 )
+        if ( rcv_data(cl_sock, (char *)&msg, TWDC_MSG_FILE_SZ, MSG_WAITALL) != 0 ) {
           end_comm = 1;
+          break;
+        }
         read_file_msg(&msg, fname, sizeof(fname), &fsize);
         /* Deny upload of files bigger than the hardcoded limit */
         if ( fsize > MAXFILESIZE ) {
+          end_comm = 1;
           writelog(0, "Error: Rejected file with size %d Bytes from '%s'", fsize, inet_ntoa(cl_addr->sin_addr));
           make_err_msg(&msg, TWDC_ERR_FILE_SZ, MAXFILESIZE);
-          snd_data(cl_sock, (char *)&msg, TWDC_MSG_ERR_SZ);
+          snd_data(cl_sock, (char *)&msg, TWDC_MSG_ERR_FULL_SZ, 0x0);
         }
         else {
           writelog(0, "Info: Accepted file '%s' (%d bytes) from '%s'", fname, fsize, inet_ntoa(cl_addr->sin_addr));
           make_err_msg(&msg, TWDC_ERR_OK);
-          snd_data(cl_sock, (char *)&msg, TWDC_MSG_ERR_SZ);
+          snd_data(cl_sock, (char *)&msg, TWDC_MSG_ERR_FULL_SZ, 0x0);
         }
         break;
       /*
        * Process Error Message
        */
       case TWDC_MSG_ERROR:
-        rcv_data(cl_sock, (char *)(&msg + TWDC_MSG_HEAD_SZ), TWDC_MSG_ERR_SZ);
+        rcv_data(cl_sock, (char *)&msg, TWDC_MSG_ERR_FULL_SZ, MSG_WAITALL);
         writelog(0, "Info: Error");
         break;
       /*
        * Process Data Message
        */
       case TWDC_MSG_DATA:
-        rcv_data(cl_sock, (char *)(&msg + TWDC_MSG_HEAD_SZ), TWDC_MSG_DATA_SZ);
+        rcv_data(cl_sock, (char *)&msg, TWDC_MSG_DATA_FULL_SZ, MSG_WAITALL);
         writelog(0, "Info: Data transfer");
         break;
     }
