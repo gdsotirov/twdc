@@ -22,7 +22,7 @@
  * File: client.h
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: client.h,v 1.6 2005/05/12 20:22:26 gsotirov Exp $
+ * $Id: client.h,v 1.7 2005/05/13 17:31:50 gsotirov Exp $
  */
 
 #ifndef __TWDC_CLIENT_H__
@@ -68,7 +68,7 @@
 #define ERR_SND_DATA_STR        "While sending data to '%s:%hd'"
 #define ERR_RCV_DATA_STR        "While receiving data from '%s:%hd'"
 #define ERR_SRV_UNKNWN_STR      "Server: Unknown error"
-#define ERR_SRV_PROTO_VER_STR   "Server: Your client protocol version %d.%d is not supported. Protocol version should be <= %d.%d"
+#define ERR_SRV_PROTO_VER_STR   "Server: Your client protocol version %d.%d is not supported. The server supports protocol versions prior or equal to %d.%d"
 #define ERR_SRV_UNEXPCTD_STR    "Server: Unexpected message"
 #define ERR_SRV_FILE_SZ_STR     "Server: Sorry. File size too long. It should not exceed %d Bytes (%s)"
 
