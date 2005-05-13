@@ -22,7 +22,7 @@
  * File: client.c
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: client.c,v 1.12 2005/05/12 20:22:56 gsotirov Exp $
+ * $Id: client.c,v 1.13 2005/05/13 17:31:27 gsotirov Exp $
  */
 
 #include <stdio.h>
@@ -67,7 +67,7 @@ int main(int argc, char * argv[]) {
   char fbname[FNAME_LNGTH] = {0};
   struct stat fstat;
   char hostnm[HOSTNM_LNGTH] = {0};
-  char hostaddr_str[16] = {0};
+  char hostaddr_str[INET_ADDRSTRLEN] = {0};
   unsigned short port = PORT;
   char verbose = 0; /* false */
   /* available options */
@@ -192,7 +192,7 @@ int main(int argc, char * argv[]) {
     printf("%s[%d]: Requesting upload of file '%s' with size %d Bytes (%s)...\n", progname, cl_pid, fname, (int)fstat.st_size, hr_fsize_str);
   }
 
-  if ( snd_data(sock, (char *)&msg, TWDC_MSG_FILE_SZ) != 0 ) {
+  if ( snd_data(sock, (char *)&msg, TWDC_MSG_FILE_FULL_SZ, 0x0) != 0 ) {
     print_error(ERR_SND_DATA, errno, hostnm, port);
     shutdown(sock, SHUT_RDWR);
     close(sock);
@@ -200,7 +200,7 @@ int main(int argc, char * argv[]) {
   }
 
   /* Get and analyze the server response */
-  if ( rcv_data(sock, (char *)&msg, TWDC_MSG_ERR_SZ) != 0 ) {
+  if ( rcv_data(sock, (char *)&msg, TWDC_MSG_ERR_FULL_SZ, 0x0) != 0 ) {
     print_error(ERR_RCV_DATA, errno, hostnm, port);
     shutdown(sock, SHUT_RDWR);
     close(sock);
@@ -330,11 +330,12 @@ void print_error(const int errcd, const int syserr, ...) {
   vfprintf(stderr, msg_fmt, v_lst);
   va_end(v_lst);
 
-  if ( syserr != 0 )
+  if ( syserr != 0 ) {
     if ( errcd == ERR_CNT_RSLVE_HOST )
       herror("; Resolve error");
     else
       perror("; System error");
+  }
   else
     fprintf(stderr, "\n");
 }
@@ -348,17 +349,18 @@ int print_response(const struct twdc_msg * msg_err) {
       print_error(ERR_SRV_UNEXPCTD, 0);
       return ERR_SRV_UNEXPCTD;
     case TWDC_ERR_PROTO_VER: {
-        int8_t srv_ver_maj = 0, srv_ver_min = 0;
+        int8_t srv_ver_maj = 0;
+        int8_t srv_ver_min = 0;
 
-        get_ver_info((struct twdc_msg_head *)&msg_err, &srv_ver_maj, &srv_ver_min);
-        print_error(ERR_SRV_PROTO_VER, TWDC_PROTO_VER_MAJOR, TWDC_PROTO_VER_MINOR, srv_ver_maj, srv_ver_min);
+        get_ver_info((struct twdc_msg_head *)msg_err, &srv_ver_maj, &srv_ver_min);
+        print_error(ERR_SRV_PROTO_VER, 0, TWDC_PROTO_VER_MAJOR, TWDC_PROTO_VER_MINOR, srv_ver_maj, srv_ver_min);
       }
       return ERR_SRV_PROTO_VER;
     case TWDC_ERR_FILE_SZ: {
         int max_sz = 0;
         char max_sz_str[10] = {0};
 
-        read_err_msg(msg_err, NULL, &max_sz);
+        read_err_msg(msg_err, &max_sz);
         hr_size(max_sz, max_sz_str, sizeof(max_sz_str));
         print_error(ERR_SRV_FILE_SZ, 0, max_sz, max_sz_str);
       }
