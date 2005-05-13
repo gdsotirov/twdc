@@ -22,7 +22,7 @@
  * File: protocol.c
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: protocol.c,v 1.3 2005/05/12 18:00:35 gsotirov Exp $
+ * $Id: protocol.c,v 1.4 2005/05/13 17:33:16 gsotirov Exp $
  */
 
 #include <string.h>
@@ -118,7 +118,7 @@ void make_err_msg(struct twdc_msg * msg, const int8_t err_cd, ...) {
        * the max file size which the server can accept.
        */
       case TWDC_ERR_FILE_SZ :
-        msg->body.error.data.max_sz = htonl(va_arg(vl, uint32_t));
+        msg->body.error.data.max_sz = htonl(va_arg(vl, size_t));
         break;
     default: break;
     }
@@ -173,7 +173,7 @@ void read_err_msg(const struct twdc_msg * msg, ...) {
     va_start(vl, msg);
     switch ( err_cd ) {
       case TWDC_ERR_FILE_SZ : {
-          uint32_t * max_sz = va_arg(vl, uint32_t *);
+          size_t * max_sz = va_arg(vl, size_t *);
           if ( max_sz != NULL )
             *max_sz = ntohl(msg->body.error.data.max_sz);
         }

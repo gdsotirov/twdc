@@ -23,7 +23,7 @@
  * File: protocol.h
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: protocol.h,v 1.7 2005/05/12 17:59:33 gsotirov Exp $
+ * $Id: protocol.h,v 1.8 2005/05/13 17:33:33 gsotirov Exp $
  */
 
 #ifndef __TWDC_PROTOCOL_H__
@@ -88,7 +88,7 @@ struct twdc_msg_head {
 struct twdc_msg_err {
   int8_t err_code;
   union error_data {
-    uint32_t max_sz;
+    size_t max_sz;
   } data;
 } DI_PACKET;
 
