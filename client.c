@@ -22,7 +22,7 @@
  * File: client.c
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: client.c,v 1.13 2005/05/13 17:31:27 gsotirov Exp $
+ * $Id: client.c,v 1.14 2005/05/14 22:21:22 gsotirov Exp $
  */
 
 #include <stdio.h>
@@ -35,13 +35,15 @@
 #include <getopt.h>
 #include <fcntl.h>
 #include <sys/types.h>
+#include <sys/param.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <libgen.h>
 
-/*#include <zlib.h>*/
+/* Third party library includes */
+#include <zlib.h>
 
 #include "globals.h"
 #include "protocol.h"
@@ -59,17 +61,6 @@ void hr_size(const int size, char * hr_str, const size_t hr_str_len);
 
 int main(int argc, char * argv[]) {
   int c = 0;
-  int sock = 0;
-  struct hostent * host_ent = NULL;
-  struct sockaddr_in sock_addr;
-  /* options */
-  char fname[FNAME_LNGTH] = {0};
-  char fbname[FNAME_LNGTH] = {0};
-  struct stat fstat;
-  char hostnm[HOSTNM_LNGTH] = {0};
-  char hostaddr_str[INET_ADDRSTRLEN] = {0};
-  unsigned short port = PORT;
-  char verbose = 0; /* false */
   /* available options */
   struct option cl_optns[] = {
     {"file",    1, 0, 'f'},
@@ -80,8 +71,20 @@ int main(int argc, char * argv[]) {
     {"help",    0, 0, 'y'},
     {0,         0, 0,  0 }
   };
-  int cl_pid = getpid();
+  /* option values */
+  char * fname = NULL;
+  char * fbname = NULL;
+  char * hostnm = NULL;
+  unsigned short port = PORT;
+  char verbose = FALSE;
+  /* globals */
+  struct hostent * host_ent = NULL;
+  struct stat fstat;
   int filetosend = 0;
+  int sock = 0;
+  struct sockaddr_in sock_addr;
+  char hostaddr_str[INET_ADDRSTRLEN] = {0};
+  int cl_pid = getpid();
   struct twdc_msg msg;
 
   progname = argv[0];
@@ -93,22 +96,43 @@ int main(int argc, char * argv[]) {
       break;
 
     switch ( c ) {
-      case 'f': if ( strlen(optarg) <= (FNAME_LNGTH - 1) ) {
-                  strncpy(fname, optarg, sizeof(fname));
-                  strncpy(fbname, basename(fname), sizeof(fbname));
-                }
-                else {
-                  print_error(ERR_FNAME_TOO_LONG, 0, FNAME_LNGTH);
-                  exit(ERR_FNAME_TOO_LONG);
-                }
-                break;
-      case 'h': if ( strlen(optarg) <= (HOSTNM_LNGTH - 1) )
-                  strncpy(hostnm, optarg, sizeof(hostnm));
-                else {
-                  print_error(ERR_HOSTNM_TOO_LONG, 0, HOSTNM_LNGTH);
-                  exit(ERR_HOSTNM_TOO_LONG);
-                }
-                break;
+      case 'f': {
+          size_t fname_len = strlen(optarg);
+          size_t fbname_len = 0;
+
+          if ( fname_len > 0 && fname_len < MAXPATHLEN ) {
+            if ( (fname = malloc(fname_len + 1)) != NULL )
+              strncpy(fname, optarg, fname_len + 1);
+          }
+          else {
+            print_error(ERR_FPATH_ERR, 0, MAXPATHLEN);
+            exit(ERR_FPATH_ERR);
+          }
+
+          fbname_len = strlen(basename(fname));
+          if ( fbname_len > 0 && fbname_len < NAME_MAX ) {
+            if ( (fbname = malloc(fbname_len + 1)) != NULL )
+              strncpy(fbname, basename(fname), fbname_len + 1);
+          }
+          else {
+            print_error(ERR_FNAME_ERR, 0, NAME_MAX);
+            exit(ERR_FNAME_ERR);
+          }
+        }
+        break;
+      case 'h': {
+          size_t hostnm_len = strlen(optarg);
+
+          if ( hostnm_len > 0 && hostnm_len < MAXHOSTNAMELEN ) {
+            if ( (hostnm = malloc(hostnm_len + 1)) != NULL )
+              strncpy(hostnm, optarg, hostnm_len + 1);
+          }
+          else {
+            print_error(ERR_HOSTNM_ERR, 0, MAXHOSTNAMELEN);
+            exit(ERR_HOSTNM_ERR);
+          }
+        }
+        break;
       case 'p': if ( optarg != NULL )
                   port = (unsigned short)atoi(optarg);
                 break;
@@ -126,18 +150,18 @@ int main(int argc, char * argv[]) {
     }
   }
 
-  if ( strlen(fname) == 0 ) {
-    print_error(ERR_NO_FILE_GIVEN, 0);
-    help();
-    exit(ERR_NO_FILE_GIVEN);
+  if ( fname == NULL || strlen(fname) == 0 ) {
+      print_error(ERR_NO_FILE_GIVEN, 0);
+      help();
+      exit(ERR_NO_FILE_GIVEN);
   }
 
-  if ( !strcmp(fbname, "/") || !strcmp(fbname, ".") || !strcmp(fbname,"..") ) {
+  if ( fbname == NULL || !strcmp(fbname, "/") || !strcmp(fbname, ".") || !strcmp(fbname,"..") ) {
     print_error(ERR_INVLD_FILE_NM, 0, fbname);
     exit(ERR_INVLD_FILE_NM);
   }
 
-  if ( strlen(hostnm) == 0 ) {
+  if ( hostnm == NULL || strlen(hostnm) == 0 ) {
     print_error(ERR_NO_HOST_GIVEN, 0);
     help();
     exit(ERR_NO_HOST_GIVEN);
@@ -148,19 +172,23 @@ int main(int argc, char * argv[]) {
     exit(ERR_CNT_RSLVE_HOST);
   }
 
+  if ( stat(fname, &fstat) != 0 ) {
+    print_error(ERR_CNT_GET_FILE_SZ, errno, fname);
+    close(filetosend);
+    exit(ERR_CNT_GET_FILE_SZ);
+  }
+
+  if ( fstat.st_size == 0 )
+    print_error(WARN_ZERO_FILE, 0);
+
   if ( (filetosend = open(fname, O_RDONLY)) == -1 ) {
     print_error(ERR_CNT_RD_FILE, errno, fname);
     exit(ERR_CNT_RD_FILE);
   }
 
-  /* Get file stats */
-  if ( stat(fname, &fstat) != 0 ) {
-    print_error(ERR_CNT_GET_FILE_SZ, errno, fname);
-    close(filetosend);
-  }
-
   if ( (sock = socket(host_ent->h_addrtype, SOCK_STREAM, 0)) == -1 ) {
     print_error(ERR_CNT_OPEN_SOCK, errno);
+    close(filetosend);
     close(sock);
     exit(ERR_CNT_OPEN_SOCK);
   }
@@ -176,6 +204,7 @@ int main(int argc, char * argv[]) {
   if ( connect(sock, (struct sockaddr *)&sock_addr, sizeof(sock_addr)) != 0 ) {
     print_error(ERR_CNT_CNNCT_HOST, errno, hostnm, port, inet_ntoa(sock_addr.sin_addr), port);
     shutdown(sock, SHUT_RDWR);
+    close(filetosend);
     close(sock);
     exit(ERR_CNT_CNNCT_HOST);
   }
@@ -219,11 +248,20 @@ int main(int argc, char * argv[]) {
     }
   }
 
+
+
   shutdown(sock, SHUT_RDWR);
   close(sock);
 
   if ( verbose )
     printf("%s[%d]: Connection to '%s:%hd' (%s:%hd) closed.\n", progname, cl_pid, hostnm, port, hostaddr_str, port);
+
+  if ( hostnm != NULL )
+    free(hostnm);
+  if ( fname != NULL )
+    free(fname);
+  if ( fbname != NULL )
+    free(fbname);
 
   return 0;
 }
@@ -263,11 +301,14 @@ void print_error(const int errcd, const int syserr, ...) {
 
   switch ( errcd ) {
     /* Errors */
-    case ERR_FNAME_TOO_LONG  :
-      strncpy(errcd_fmt, ERR_FNAME_TOO_LONG_STR, sizeof(errcd_fmt));
+    case ERR_FPATH_ERR :
+      strncpy(errcd_fmt, ERR_FPATH_ERR_STR, sizeof(errcd_fmt));
       break;
-    case ERR_HOSTNM_TOO_LONG :
-      strncpy(errcd_fmt, ERR_HOSTNM_TOO_LONG_STR, sizeof(errcd_fmt));
+    case ERR_FNAME_ERR :
+      strncpy(errcd_fmt, ERR_FNAME_ERR_STR, sizeof(errcd_fmt));
+      break;
+    case ERR_HOSTNM_ERR :
+      strncpy(errcd_fmt, ERR_HOSTNM_ERR_STR, sizeof(errcd_fmt));
       break;
     case ERR_NO_FILE_GIVEN :
       strncpy(errcd_fmt, ERR_NO_FILE_GIVEN_STR, sizeof(errcd_fmt));
@@ -302,17 +343,21 @@ void print_error(const int errcd, const int syserr, ...) {
     case ERR_RCV_DATA :
       strncpy(errcd_fmt, ERR_RCV_DATA_STR, sizeof(errcd_fmt));
       break;
+    /* Protocol (server) errors */
     case ERR_SRV_UNKNWN :
       strncpy(errcd_fmt, ERR_SRV_UNKNWN_STR, sizeof(errcd_fmt));
       break;
     case ERR_SRV_PROTO_VER :
       strncpy(errcd_fmt, ERR_SRV_PROTO_VER_STR, sizeof(errcd_fmt));
       break;
-    case ERR_SRV_UNEXPCTD :
-      strncpy(errcd_fmt, ERR_SRV_UNEXPCTD_STR, sizeof(errcd_fmt));
-      break;
     case ERR_SRV_FILE_SZ :
       strncpy(errcd_fmt, ERR_SRV_FILE_SZ_STR, sizeof(errcd_fmt));
+      break;
+    case ERR_SRV_FILE_NM :
+      strncpy(errcd_fmt, ERR_SRV_FILE_NM_STR, sizeof(errcd_fmt));
+      break;
+    case ERR_SRV_SYS :
+      strncpy(errcd_fmt, ERR_SRV_SYS_STR, sizeof(errcd_fmt));
       break;
     /* Warnings */
     case WARN_ZERO_FILE :
@@ -321,8 +366,12 @@ void print_error(const int errcd, const int syserr, ...) {
     default: break;
   }
 
-  if ( errcd < 0 )
-    sprintf(msg_fmt, "%s[%d]: Error: %s", progname, getpid(), errcd_fmt);
+  if ( errcd < 0 ) {
+    if ( errcd < -300 )
+      sprintf(msg_fmt, "%s[%d]: Error: Server: %s", progname, getpid(), errcd_fmt);
+    else
+      sprintf(msg_fmt, "%s[%d]: Error: %s", progname, getpid(), errcd_fmt);
+  }
   else if ( errcd > 0 )
     sprintf(msg_fmt, "%s[%d]: Warning: %s", progname, getpid(), errcd_fmt);
 
@@ -344,10 +393,9 @@ void print_error(const int errcd, const int syserr, ...) {
  * Description : Print the server response to the client terminal
  */
 int print_response(const struct twdc_msg * msg_err) {
-  switch ( get_err_code(msg_err) ) {
-    case TWDC_ERR_UNEXPCTD_MSG:
-      print_error(ERR_SRV_UNEXPCTD, 0);
-      return ERR_SRV_UNEXPCTD;
+  int8_t err_cd = 0;
+
+  switch ( err_cd = get_err_code(msg_err) ) {
     case TWDC_ERR_PROTO_VER: {
         int8_t srv_ver_maj = 0;
         int8_t srv_ver_min = 0;
@@ -366,8 +414,11 @@ int print_response(const struct twdc_msg * msg_err) {
       }
       return ERR_SRV_FILE_SZ;
     default:
-      print_error(ERR_SRV_UNKNWN, 0);
-      return ERR_SRV_UNKNWN;
+      if ( err_cd == TWDC_ERR_OK || err_cd == TWDC_ERR_FILE_NM || err_cd == TWDC_ERR_SYS )
+        print_error(err_cd, 0);
+      else
+        print_error(ERR_SRV_UNKNWN, 0, ERR_SRV_UNKNWN);
+      return err_cd;
   }
 }
 
