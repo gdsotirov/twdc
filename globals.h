@@ -1,5 +1,5 @@
 /* TWDC - a client/server application for the Tumbleweed Developer's Contest
- * Copyright (C) 2005 Georgi D. Sotirov 
+ * Copyright (C) 2005 Georgi D. Sotirov
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -22,7 +22,7 @@
  * File: globals.h
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: globals.h,v 1.1 2005/04/26 16:39:10 gsotirov Exp $
+ * $Id: globals.h,v 1.2 2005/05/14 17:47:40 gsotirov Exp $
  */
 
 #ifndef __TWDC_GLOBALS_H__
@@ -31,11 +31,6 @@
 /* constants for boolean operations */
 #define FALSE 0
 #define TRUE  1
-
-/* limits */
-#define FNAME_LNGTH  512
-#define HOSTNM_LNGTH 512
-
 
 /* programm information */
 #define AUTHOR_NAME  "Georgi D. Sotirov"
