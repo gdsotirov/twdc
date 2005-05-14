@@ -22,11 +22,12 @@
  * File: protocol.c
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: protocol.c,v 1.4 2005/05/13 17:33:16 gsotirov Exp $
+ * $Id: protocol.c,v 1.5 2005/05/14 22:24:08 gsotirov Exp $
  */
 
 #include <string.h>
 #include <stdarg.h>
+#include <stdlib.h>
 #include <netinet/in.h>
 
 #include "protocol.h"
@@ -185,12 +186,26 @@ void read_err_msg(const struct twdc_msg * msg, ...) {
 }
 
 /* Function    : read_file_msg
- * Description : Retrive information from an file request message
+ * Description : Retrieve information from a file request message
+ * Input       : msg - pointer to a message buffer
+ *               fname - pointer to a buffer where to copy the file name
+ *                       if it points to nothing (NULL) the function will
+ *                       allocate enought memory to copy the file name
+ *               fname_len - the length of the fname buffer if it point to
+ *                           something diferent than NULL
+ *               fsize - the size of the file
+ *
+ *
  */
-void read_file_msg(const struct twdc_msg * msg, char * fname, const size_t fname_sz, size_t * fsize) {
+void read_file_msg(const struct twdc_msg * msg, char * fname, const size_t fname_len, size_t * fsize) {
   if ( msg != NULL ) {
     if ( fname != NULL )
-      strncpy(fname, msg->body.file.fname, fname_sz);
+      strncpy(fname, msg->body.file.fname, fname_len);
+    else {
+      size_t fname_len = strlen(msg->body.file.fname);
+      if ( (fname = malloc(fname_len + 1)) != NULL )
+        strncpy(fname, msg->body.file.fname, fname_len);
+    }
     if ( fsize != NULL )
       *fsize = ntohl(msg->body.file.fsize);
   }
