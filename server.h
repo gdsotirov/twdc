@@ -1,5 +1,5 @@
 /* TWDC - a client/server application for the Tumbleweed Developer's Contest
- * Copyright (C) 2005 Georgi D. Sotirov 
+ * Copyright (C) 2005 Georgi D. Sotirov
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -22,31 +22,31 @@
  * File: server.h
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: server.h,v 1.6 2005/05/03 18:51:21 gsotirov Exp $
+ * $Id: server.h,v 1.7 2005/05/14 22:24:54 gsotirov Exp $
  */
 
 #ifndef __TWDC_SERVER_H__
 #define __TWDC_SERVER_H__
 
-#define BACKLOG 10
+#define BACK_LOG 10
 
 /* Maximum file size in bytes the server should accept
  * Default: 10 MB
  */
-#define MAXFILESIZE 10485760 /* Bytes */
+#define MAX_FILE_SIZE 10485760 /* Bytes */
 
 /* The direcotry in which the uploaded files wlll be
  * stored.
  */
-#define STOREDIR "/tmp/store"
+#define STORE_DIR "/tmp/store"
 
 /* The directory where the temporary files will be
  * stored
  */
-#define TEMPDIR "/tmp"
+#define TEMP_DIR "/tmp"
 
 /* Where should all messages go */
-#define LOGFILE "/tmp/server-%d.log"
+#define LOG_FILE "/tmp/server-%d.log"
 
 #endif /* __TWDC_SERVER_H__ */
 
