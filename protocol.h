@@ -23,16 +23,17 @@
  * File: protocol.h
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: protocol.h,v 1.8 2005/05/13 17:33:33 gsotirov Exp $
+ * $Id: protocol.h,v 1.9 2005/05/14 22:22:54 gsotirov Exp $
  */
 
 #ifndef __TWDC_PROTOCOL_H__
 #define __TWDC_PROTOCOL_H__
 
 #include <stdint.h>
+#include <sys/param.h>
 
 /* Protocol version */
-#define TWDC_PROTO_VER_MAJOR 1
+#define TWDC_PROTO_VER_MAJOR 0
 #define TWDC_PROTO_VER_MINOR 1
 
 /* Check types */
@@ -46,7 +47,7 @@
 #define PORT 9919
 
 /* Protocol message length */
-#define PMSG_LNGTH 512
+#define PDATA_MAX 512
 
 /* Message types */
 #define TWDC_MSG_RSRVD    1
@@ -55,10 +56,20 @@
 #define TWDC_MSG_DATA     4
 
 /* Error codes */
-#define TWDC_ERR_OK            0
-#define TWDC_ERR_PROTO_VER    -101
-#define TWDC_ERR_UNEXPCTD_MSG -102
-#define TWDC_ERR_FILE_SZ      -103
+#define TWDC_ERR_OK        0
+#define TWDC_ERR_RSRVD     -11
+#define TWDC_ERR_PROTO_VER -12
+#define TWDC_ERR_FILE_SZ   -13
+#define TWDC_ERR_FILE_NM   -14
+#define TWDC_ERR_SYS       -51
+
+/* Error strings */
+#define TWDC_ERR_OK_STR        ""
+#define TWDC_ERR_RSRVD_STR     "Reserved"
+#define TWDC_ERR_PROTO_VER_STR "Your protocol version %d.%d is not supported. Supported protocol versions are prior or equal to %d.%d"
+#define TWDC_ERR_FILE_SZ_STR   "Sorry. File size too long. It should not exceed %d Bytes (%s)"
+#define TWDC_ERR_FILE_NM_STR   "No file name specified"
+#define TWDC_ERR_SYS_STR       "A system error occured while in operation"
 
 #ifdef __GNUC__
 #define DI_PACKET __attribute__ ((packed, aligned(1)))
@@ -96,7 +107,7 @@ struct twdc_msg_err {
 
 /* File request message - file name + file size */
 struct twdc_msg_file {
-  char   fname[256];
+  char   fname[NAME_MAX];
   size_t fsize;
 } DI_PACKET;
 
@@ -104,7 +115,7 @@ struct twdc_msg_file {
 
 /* Data message - header + data */
 struct twdc_msg_data {
-  char buf[PMSG_LNGTH];
+  char buf[PDATA_MAX];
 } DI_PACKET;
 
 #define TWDC_MSG_DATA_SZ sizeof(struct twdc_msg_data)
@@ -138,12 +149,11 @@ struct twdc_msg {
 #endif
 
 /* Protocol interface */
-
 int get_msg_type(const struct twdc_msg_head * msg);
+void get_ver_info(const struct twdc_msg_head * msg, int8_t * ver_maj, int8_t * ver_min);
 
 int check_version_maj(const struct twdc_msg_head * msg, const uint8_t ver_major, const int check_type);
 int check_version_min(const struct twdc_msg_head * msg, const uint8_t ver_minor, const int check_type);
-void get_ver_info(const struct twdc_msg_head * msg, int8_t * ver_maj, int8_t * ver_min);
 
 void make_err_msg(struct twdc_msg * msg, const int8_t err_cd, ...);
 void make_file_msg(struct twdc_msg * msg, const char * fname, const size_t fsize);
@@ -151,7 +161,7 @@ void make_data_msg(struct twdc_msg * msg, const char * buf, const size_t buf_sz)
 
 int8_t get_err_code(const struct twdc_msg * msg);
 void read_err_msg(const struct twdc_msg * msg, ...);
-void read_file_msg(const struct twdc_msg * msg, char * fname, const size_t fname_sz, size_t * fsize);
+void read_file_msg(const struct twdc_msg * msg, char * fname, const size_t fname_len, size_t * fsize);
 void read_data_msg(const struct twdc_msg * msg, char * buf, size_t * buf_sz);
 
 #endif /* __TWDC_PROTOCOL_H__ */
