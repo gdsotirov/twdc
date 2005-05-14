@@ -22,7 +22,7 @@
  * File: server.c
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: server.c,v 1.15 2005/05/13 17:33:57 gsotirov Exp $
+ * $Id: server.c,v 1.16 2005/05/14 22:26:10 gsotirov Exp $
  */
 
 #define _GNU_SOURCE
@@ -32,6 +32,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <time.h>
 #include <unistd.h>
 #include <netdb.h>
@@ -40,6 +41,9 @@
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+
+/* Third party library includes */
+#include <zlib.h>
 
 #include "globals.h"
 #include "protocol.h"
@@ -53,8 +57,8 @@ int service(int cl_sock, struct sockaddr_in * cl_addr);
 int main(int argc, char * argv[]) {
   int sock = 0;
   struct sockaddr_in sock_addr;
-  char hostnm[256] = {0};
-  char srv_addr_str[16] = {0};
+  char hostnm[HOST_NAME_MAX] = {0};
+  char srv_addr_str[INET_ADDRSTRLEN] = {0};
 
   /* Become a daemon */
   /* - close standard files */
@@ -94,7 +98,7 @@ int main(int argc, char * argv[]) {
 
   /* TODO: Configure the socket here */
 
-  if ( init_addr(hostnm, sizeof(hostnm), &sock_addr) != 0 )
+  if ( init_addr(hostnm, HOST_NAME_MAX, &sock_addr) != 0 )
     exit(-1);
 
   strncpy(srv_addr_str, inet_ntoa(sock_addr.sin_addr), sizeof(srv_addr_str));
@@ -104,7 +108,7 @@ int main(int argc, char * argv[]) {
     exit(-1);
   }
 
-  if ( listen(sock, BACKLOG) == -1 ) {
+  if ( listen(sock, BACK_LOG) == -1 ) {
     writelog(errno, "Error: Can not start listening on socket.");
     close(sock);
     exit(-1);
@@ -158,7 +162,7 @@ int writelog(const int err_num, const char * cl_msg_fmt, ...) {
   char * sys_err = NULL;
 
   if (strlen(log_fname) == 0 )
-    sprintf(log_fname, LOGFILE, getpid());
+    sprintf(log_fname, LOG_FILE, getpid());
 
   if ( (logfp = fopen(log_fname, "a+")) == NULL ) {
     fclose(logfp);
@@ -216,12 +220,16 @@ int init_addr(char * host_nm, const size_t host_nm_sz, struct sockaddr_in * addr
  * Return      : On success the function will return zero.
  */
 int service(int cl_sock, struct sockaddr_in * cl_addr) {
+  char cl_addr_str[INET_ADDRSTRLEN] = {0};
   char end_comm = 0;
-  char fname[256] = {0};
-  /*char fname_full[256] = {0};*/
+  char end_with_error = 1; /* true by default */
+  int filed = 0;
+  char * fname = NULL;
+  char * fname_full = NULL;
   size_t fsize = 0;
   struct twdc_msg msg;
 
+  strncpy(cl_addr_str, inet_ntoa(cl_addr->sin_addr), INET_ADDRSTRLEN);
   do {
     /* Read a message header */
     if ( rcv_data(cl_sock, (char *)&msg, TWDC_MSG_HEAD_SZ, MSG_PEEK) != 0 ) {
@@ -236,7 +244,7 @@ int service(int cl_sock, struct sockaddr_in * cl_addr) {
 
       end_comm = 1;
       get_ver_info((struct twdc_msg_head *)&msg, &ver_maj, &ver_min);
-      writelog(0, "Error: Rejected client '%s' because of unsuported protocol version %d.%d", inet_ntoa(cl_addr->sin_addr), ver_maj, ver_min);
+      writelog(0, "Error: Rejected client '%s' because of unsuported protocol version %d.%d", cl_addr_str, ver_maj, ver_min);
       make_err_msg(&msg, TWDC_ERR_PROTO_VER, TWDC_PROTO_VER_MAJOR, TWDC_PROTO_VER_MINOR);
       snd_data(cl_sock, (char *)&msg, TWDC_MSG_ERR_FULL_SZ, 0x0);
       break;
@@ -251,26 +259,55 @@ int service(int cl_sock, struct sockaddr_in * cl_addr) {
           end_comm = 1;
           break;
         }
-        read_file_msg(&msg, fname, sizeof(fname), &fsize);
+        read_file_msg(&msg, fname, NAME_MAX, &fsize);
         /* Deny upload of files bigger than the hardcoded limit */
-        if ( fsize > MAXFILESIZE ) {
+        if ( fsize > MAX_FILE_SIZE ) {
           end_comm = 1;
-          writelog(0, "Error: Rejected file with size %d Bytes from '%s'", fsize, inet_ntoa(cl_addr->sin_addr));
-          make_err_msg(&msg, TWDC_ERR_FILE_SZ, MAXFILESIZE);
+          writelog(0, "Error: Rejected file with size %d Bytes from '%s'", fsize, cl_addr_str);
+          make_err_msg(&msg, TWDC_ERR_FILE_SZ, MAX_FILE_SIZE);
           snd_data(cl_sock, (char *)&msg, TWDC_MSG_ERR_FULL_SZ, 0x0);
         }
+
+        if ( strlen(fname) > 0 ) {
+          size_t fname_full_len = strlen(fname) + strlen(STORE_DIR) + 1;
+
+          if ( (fname_full = malloc(fname_full_len)) != NULL ) {
+            snprintf(fname_full, fname_full_len, "%s/%s", STORE_DIR, fname);
+
+            if ( (filed = open(fname_full, O_CREAT, S_IRWXU | S_IRGRP | S_IROTH)) == -1 ) {
+              writelog(errno, "Error: Cannot create file '%s' by request of client '%s'", fname_full, cl_addr_str);
+              make_err_msg(&msg, TWDC_ERR_SYS);
+              snd_data(cl_sock, (char *)&msg, TWDC_MSG_ERR_FULL_SZ, 0x0);
+            }
+            else {
+              writelog(0, "Info: Accepted file '%s' (%d bytes) from '%s'", fname, fsize, cl_addr_str);
+              make_err_msg(&msg, TWDC_ERR_OK);
+              snd_data(cl_sock, (char *)&msg, TWDC_MSG_ERR_FULL_SZ, 0x0);
+            }
+          }
+          else {
+            writelog(errno, "Error: Can not allocate memory");
+            make_err_msg(&msg, TWDC_ERR_SYS);
+            snd_data(cl_sock, (char *)&msg, TWDC_MSG_ERR_FULL_SZ, 0x0);
+          }
+        }
         else {
-          writelog(0, "Info: Accepted file '%s' (%d bytes) from '%s'", fname, fsize, inet_ntoa(cl_addr->sin_addr));
-          make_err_msg(&msg, TWDC_ERR_OK);
+          writelog(0, "Warning: Client '%s' did not specify file name", cl_addr_str);
+          make_err_msg(&msg, TWDC_ERR_FILE_NM);
           snd_data(cl_sock, (char *)&msg, TWDC_MSG_ERR_FULL_SZ, 0x0);
         }
         break;
       /*
        * Process Error Message
        */
-      case TWDC_MSG_ERROR:
-        rcv_data(cl_sock, (char *)&msg, TWDC_MSG_ERR_FULL_SZ, MSG_WAITALL);
-        writelog(0, "Info: Error");
+      case TWDC_MSG_ERROR: {
+          int8_t err_cd = 0;
+
+          rcv_data(cl_sock, (char *)&msg, TWDC_MSG_ERR_FULL_SZ, MSG_WAITALL);
+          err_cd = get_err_code(&msg);
+          if ( err_cd != TWDC_ERR_OK )
+            writelog(0, "Info: Error %d received from client '%s'", err_cd, cl_addr_str);
+        }
         break;
       /*
        * Process Data Message
@@ -281,6 +318,17 @@ int service(int cl_sock, struct sockaddr_in * cl_addr) {
         break;
     }
   } while ( end_comm == 0 );
+
+  /* Clean up on exit */
+  if ( end_with_error ) {
+    if ( filed > 0 )
+      close(filed);
+  }
+
+  if ( fname != NULL )
+    free(fname);
+  if ( fname_full != NULL )
+    free(fname_full);
 
   return 0;
 }
