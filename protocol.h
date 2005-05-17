@@ -23,7 +23,7 @@
  * File: protocol.h
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: protocol.h,v 1.10 2005/05/17 20:18:48 gsotirov Exp $
+ * $Id: protocol.h,v 1.11 2005/05/17 20:25:05 gsotirov Exp $
  */
 
 #ifndef __TWDC_PROTOCOL_H__
@@ -158,12 +158,12 @@ int check_version_min(const struct twdc_msg_head * msg, const uint8_t ver_minor,
 
 void make_err_msg(struct twdc_msg * msg, const int8_t err_cd, ...);
 void make_file_msg(struct twdc_msg * msg, const uint8_t * fname, const size_t fsize);
-void make_data_msg(struct twdc_msg * msg, const uint8_t * buf, const size_t buf_sz);
+void make_data_msg(struct twdc_msg * msg, const void * buf, const size_t buf_sz);
 
 int8_t get_err_code(const struct twdc_msg * msg);
 void read_err_msg(const struct twdc_msg * msg, ...);
 void read_file_msg(const struct twdc_msg * msg, uint8_t * fname, const size_t fname_len, size_t * fsize);
-void read_data_msg(const struct twdc_msg * msg, uint8_t * buf, size_t * buf_sz);
+void read_data_msg(const struct twdc_msg * msg, void * buf, size_t * buf_sz);
 
 #endif /* __TWDC_PROTOCOL_H__ */
 
