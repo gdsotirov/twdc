@@ -22,28 +22,34 @@
  * File: data.c
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: data.c,v 1.2 2005/05/13 17:32:36 gsotirov Exp $
+ * $Id: data.c,v 1.3 2005/05/17 20:17:47 gsotirov Exp $
  */
 
 #include <unistd.h>
 #include <sys/socket.h>
 
+#include "data.h"
+
 /* Function    : read_data
- * Description : Read data from a file until the passed buffer gets full
+ * Description : Read data from a file until the passed buffer gets full, eof or error occured
  * Input       : fd - file descriptor
  *               buf - the buffer to read in
  *               buf_len - the length of the buffer
  */
-int read_data(int fd, char * buf, size_t buf_len) {
+int read_data(int fd, uint8_t * buf, size_t * buf_len) {
   size_t tr = 0; /* total read */
   size_t br = 0; /* bytes read at once */
 
-  while ( tr < buf_len) {
-    if ( (br = read(fd, buf, buf_len)) > 0 ) {
+  while ( tr < *buf_len ) {
+    if ( (br = read(fd, buf, *buf_len)) > 0 ) {
       tr += br;
       buf += br;
     }
-    else if ( br < 0 )
+    else if ( br == 0 ) { /* EOF */
+      *buf_len = tr;
+      break;
+    }
+    else
       return -1;
   }
 
@@ -51,19 +57,23 @@ int read_data(int fd, char * buf, size_t buf_len) {
 }
 
 /* Function    : write_data
- * Description : Write all data from a buffer to a file
+ * Description : Write all data from a buffer to a file or as much as possible
  * Input       : fd - file descriptor
  *               buf - the buffer to write
  *               buf_len - the length of the buffer
  */
-int write_data(int fd, char * buf, size_t buf_len) {
+int write_data(int fd, uint8_t * buf, size_t * buf_len) {
   size_t tw = 0; /* total written */
   size_t bw = 0; /* bytes written at once */
 
-  while ( tw < buf_len) {
-    if ( (bw = write(fd, buf, buf_len)) > 0 ) {
+  while ( tw < *buf_len ) {
+    if ( (bw = write(fd, buf, *buf_len)) > 0 ) {
       tw += bw;
       buf += bw;
+    }
+    else if ( bw == 0 ) {
+      *buf_len = tw;
+      break;
     }
     else if ( bw < 0 )
       return -1;
@@ -79,7 +89,7 @@ int write_data(int fd, char * buf, size_t buf_len) {
  *               buf_len - the length of the buffer
  *               flags - same flags as in recv(2) function
  */
-int rcv_data(int sock, char * buf, size_t buf_len, int flags) {
+int rcv_data(int sock, uint8_t * buf, size_t buf_len, int flags) {
   size_t tr = 0; /* total received */
   size_t br = 0; /* bytes received at once */
 
@@ -92,7 +102,7 @@ int rcv_data(int sock, char * buf, size_t buf_len, int flags) {
       return -1;
   }
 
-  return 0;
+  return tr;
 }
 
 /* Function    : snd_data
@@ -102,7 +112,7 @@ int rcv_data(int sock, char * buf, size_t buf_len, int flags) {
  *               buf_len - the length of the buffer
  *               flags - same flags as in recv(2) function
  */
-int snd_data(int sock, char * buf, size_t buf_len, int flags) {
+int snd_data(int sock, uint8_t * buf, size_t buf_len, int flags) {
   size_t ts = 0; /* total send */
   size_t bs = 0; /* bytes send at once */
 
@@ -115,6 +125,6 @@ int snd_data(int sock, char * buf, size_t buf_len, int flags) {
       return -1;
   }
 
-  return 0;
+  return ts;
 }
 
