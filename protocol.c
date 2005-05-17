@@ -22,7 +22,7 @@
  * File: protocol.c
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: protocol.c,v 1.5 2005/05/14 22:24:08 gsotirov Exp $
+ * $Id: protocol.c,v 1.6 2005/05/17 20:26:17 gsotirov Exp $
  */
 
 #include <string.h>
@@ -97,7 +97,7 @@ int check_version_min(const struct twdc_msg_head * msg, const uint8_t ver_minor,
 /* Function    : get_ver_info
  * Description : Extract protocol version info for a message
  */
-void get_ver_info(const struct twdc_msg_head * msg, int8_t * ver_maj, int8_t * ver_min) {
+void get_ver_info(const struct twdc_msg_head * msg, uint8_t * ver_maj, uint8_t * ver_min) {
   *ver_maj = msg->ver_major;
   *ver_min = msg->ver_minor;
 }
@@ -118,7 +118,7 @@ void make_err_msg(struct twdc_msg * msg, const int8_t err_cd, ...) {
       /* The extra information to the file size error message will be
        * the max file size which the server can accept.
        */
-      case TWDC_ERR_FILE_SZ :
+      case TWDC_ERR_FILE_SZ:
         msg->body.error.data.max_sz = htonl(va_arg(vl, size_t));
         break;
     default: break;
@@ -130,12 +130,12 @@ void make_err_msg(struct twdc_msg * msg, const int8_t err_cd, ...) {
 /* Function    : make_file_msg
  * Description : Init an file request message
  */
-void make_file_msg(struct twdc_msg * msg, const char * fname, const size_t fsize) {
+void make_file_msg(struct twdc_msg * msg, const uint8_t * fname, const size_t fsize) {
   if ( msg != NULL ) {
     msg->header.msg_type = TWDC_MSG_FILE_REQ;
     set_version(&msg->header);
     if ( fname != NULL )
-      strncpy(msg->body.file.fname, fname, sizeof(msg->body.file.fname));
+      memcpy(msg->body.file.fname, fname, strlen((char *)fname) + 1);
     msg->body.file.fsize = htonl(fsize);
   }
 }
@@ -143,12 +143,14 @@ void make_file_msg(struct twdc_msg * msg, const char * fname, const size_t fsize
 /* Function    : make_data_msg
  * Description : Init an data message
  */
-void make_data_msg(struct twdc_msg * msg, const char * buf, const size_t buf_sz) {
+void make_data_msg(struct twdc_msg * msg, const void * buf, const size_t buf_sz) {
   if ( msg != NULL ) {
     msg->header.msg_type = TWDC_MSG_DATA;
     set_version(&msg->header);
-    if ( buf != NULL )
+    if ( buf != NULL ) {
       memcpy(msg->body.data.buf, buf, buf_sz);
+      msg->body.data.size = buf_sz;
+    }
   }
 }
 
@@ -173,7 +175,7 @@ void read_err_msg(const struct twdc_msg * msg, ...) {
     err_cd = msg->body.error.err_code;
     va_start(vl, msg);
     switch ( err_cd ) {
-      case TWDC_ERR_FILE_SZ : {
+      case TWDC_ERR_FILE_SZ: {
           size_t * max_sz = va_arg(vl, size_t *);
           if ( max_sz != NULL )
             *max_sz = ntohl(msg->body.error.data.max_sz);
@@ -197,14 +199,14 @@ void read_err_msg(const struct twdc_msg * msg, ...) {
  *
  *
  */
-void read_file_msg(const struct twdc_msg * msg, char * fname, const size_t fname_len, size_t * fsize) {
+void read_file_msg(const struct twdc_msg * msg, uint8_t * fname, const size_t fname_len, size_t * fsize) {
   if ( msg != NULL ) {
     if ( fname != NULL )
-      strncpy(fname, msg->body.file.fname, fname_len);
+      strncpy((char *)fname, (char *)msg->body.file.fname, fname_len);
     else {
-      size_t fname_len = strlen(msg->body.file.fname);
+      size_t fname_len = strlen((char *)msg->body.file.fname);
       if ( (fname = malloc(fname_len + 1)) != NULL )
-        strncpy(fname, msg->body.file.fname, fname_len);
+        memcpy(fname, msg->body.file.fname, fname_len + 1);
     }
     if ( fsize != NULL )
       *fsize = ntohl(msg->body.file.fsize);
