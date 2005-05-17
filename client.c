@@ -22,7 +22,7 @@
  * File: client.c
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: client.c,v 1.14 2005/05/14 22:21:22 gsotirov Exp $
+ * $Id: client.c,v 1.15 2005/05/17 20:15:34 gsotirov Exp $
  */
 
 #include <stdio.h>
@@ -38,6 +38,8 @@
 #include <sys/param.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
+#include <sys/wait.h>
+#include <sys/time.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <libgen.h>
@@ -50,6 +52,8 @@
 #include "data.h"
 #include "client.h"
 
+#define CHUNK 16384
+
 static char * progname = NULL;
 
 /* prototypes */
@@ -58,6 +62,8 @@ void version(void);
 void print_error(const int errcd, const int syserr, ...);
 int print_response(const struct twdc_msg * msg_stat);
 void hr_size(const int size, char * hr_str, const size_t hr_str_len);
+int compress_sendfile(int source_fd, int dest_fd);
+double calc_duration(struct timeval * end, struct timeval * begin);
 
 int main(int argc, char * argv[]) {
   int c = 0;
@@ -86,6 +92,11 @@ int main(int argc, char * argv[]) {
   char hostaddr_str[INET_ADDRSTRLEN] = {0};
   int cl_pid = getpid();
   struct twdc_msg msg;
+  int child_pid = 0;
+  int pipe_fd[2] = {0};
+  int transfered = 0;
+  struct timeval transf_beg;
+  struct timeval transf_end;
 
   progname = argv[0];
 
@@ -144,7 +155,7 @@ int main(int argc, char * argv[]) {
       case 'y': help();
                 exit(0);
                 break;
-      default : fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+      default:  fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
                 exit(0);
                 break;
     }
@@ -213,25 +224,27 @@ int main(int argc, char * argv[]) {
     printf("%s[%d]: Connected to '%s:%hd' (%s:%hd)\n", progname, cl_pid, hostnm, port, hostaddr_str, port);
 
   /* Request file upload to the server */
-  make_file_msg(&msg, fbname, fstat.st_size);
+  make_file_msg(&msg, (uint8_t *)fbname, fstat.st_size);
 
   if ( verbose ) {
     char hr_fsize_str[10] = {0};
     hr_size(fstat.st_size, hr_fsize_str, sizeof(hr_fsize_str));
-    printf("%s[%d]: Requesting upload of file '%s' with size %d Bytes (%s)...\n", progname, cl_pid, fname, (int)fstat.st_size, hr_fsize_str);
+    printf("%s[%d]: Requesting upload of file '%s' with size %d Bytes (%s)...\n", progname, cl_pid, fname, (size_t)fstat.st_size, hr_fsize_str);
   }
 
-  if ( snd_data(sock, (char *)&msg, TWDC_MSG_FILE_FULL_SZ, 0x0) != 0 ) {
+  if ( snd_data(sock, (uint8_t *)&msg, TWDC_MSG_FILE_FULL_SZ, 0x0) != 0 ) {
     print_error(ERR_SND_DATA, errno, hostnm, port);
     shutdown(sock, SHUT_RDWR);
+    close(filetosend);
     close(sock);
     exit(ERR_SND_DATA);
   }
 
   /* Get and analyze the server response */
-  if ( rcv_data(sock, (char *)&msg, TWDC_MSG_ERR_FULL_SZ, 0x0) != 0 ) {
+  if ( rcv_data(sock, (uint8_t *)&msg, TWDC_MSG_ERR_FULL_SZ, 0x0) != 0 ) {
     print_error(ERR_RCV_DATA, errno, hostnm, port);
     shutdown(sock, SHUT_RDWR);
+    close(filetosend);
     close(sock);
     exit(ERR_RCV_DATA);
   }
@@ -243,13 +256,109 @@ int main(int argc, char * argv[]) {
     }
     else {
       shutdown(sock, SHUT_RDWR);
+      close(filetosend);
       close(sock);
       exit(print_response(&msg));
     }
   }
 
+  if ( pipe(pipe_fd) ) {
+    print_error(ERR_PIPE, errno);
+    close(filetosend);
+    shutdown(sock, SHUT_RDWR);
+    close(sock);
+    exit(ERR_PIPE);
+  }
 
+  /* The child process will read data from the file, compress it and send it
+   * through pipe to the parent process.
+   * The parent process will read compressed data from the pipe and will send
+   * to over the network to the server.
+   */
+  child_pid = fork();
+  switch ( child_pid ) {
+    case -1:
+        print_error(ERR_CHILD, errno);
+        close(filetosend);
+        shutdown(sock, SHUT_RDWR);
+        close(sock);
+        exit(ERR_CHILD);
+    case  0: {
+        int ret = ERR_OK;
 
+        close(pipe_fd[0]); /* the child will only write to the pipe */
+
+        ret = compress_sendfile(filetosend, pipe_fd[1]);
+        if ( ret != ERR_OK ) {
+          if ( ret == ERR_ZLIB )
+            print_error(ret, Z_ERRNO);
+          else
+            print_error(ret, errno);
+        }
+
+        close(pipe_fd[1]);
+        exit(ret);
+      }
+    default: {
+        int status = 0;
+        uint8_t data[TWDC_DATA_MAX];
+        size_t br = TWDC_DATA_MAX; /* bytes read */
+
+        close(pipe_fd[1]); /* the parent will only read from the pipe */
+
+        gettimeofday(&transf_beg, NULL);
+        do {
+          if ( read_data(pipe_fd[0], data, &br) != 0 ) {
+            print_error(ERR_RD_DATA, errno);
+            make_err_msg(&msg, TWDC_ERR_SYS);
+            snd_data(sock, (uint8_t *)&msg, TWDC_MSG_ERR_FULL_SZ, 0x0);
+            break;
+          }
+
+          /* pack the compressed data and send it */
+          make_data_msg(&msg, data, br);
+          if ( snd_data(sock, (uint8_t *)&msg, TWDC_MSG_FILE_FULL_SZ, 0x0) != 0 ) {
+            print_error(ERR_SND_DATA, errno, hostnm, port);
+            make_err_msg(&msg, TWDC_ERR_SYS);
+            snd_data(sock, (uint8_t *)&msg, TWDC_MSG_ERR_FULL_SZ, 0x0);
+            break;
+          }
+
+          transfered += br;
+
+          if ( br < TWDC_DATA_MAX || br == 0 )
+            break;
+          else
+            br = TWDC_DATA_MAX;
+        } while ( 1 );
+
+        gettimeofday(&transf_end, NULL);
+        waitpid(child_pid, &status, 0x0);
+        close(pipe_fd[0]);
+      }
+      break;
+  }
+
+  /* print information messages on successful transfer */
+  {
+  char size_str[10] = {0};
+  double dur = calc_duration(&transf_end, &transf_beg);
+  double cmpr_rate = transfered/fstat.st_size * 100;
+  double speed =
+
+  printf("%s[%d]: Successful transfer\n", progname, cl_pid);
+  printf("%s[%d]: File: %s\n", progname, cl_pid, fname);
+  hr_size(fstat.st_size, size_str, sizeof(size_str));
+  printf("%s[%d]: Size: %d Bytes (%s)\n", progname, cl_pid, (size_t)fstat.st_size, size_str);
+  hr_size(transfered, size_str, sizeof(size_str));
+  printf("%s[%d]: Transfered: %d Bytes (%s)\n", progname, cl_pid, transfered, size_str);
+  printf("%s[%d]: Duration: %1.3f seconds\n", progname, cl_pid, dur);
+  hr_size(speed, size_str, sizeof(size_str));
+  printf("%s[%d]: Transfer speed: %s/s\n", progname, cl_pid, size_str);
+  printf("%s[%d]: Compression rate: %1.2f %%\n", progname, cl_pid, cmpr_rate);
+  }
+
+  close(filetosend);
   shutdown(sock, SHUT_RDWR);
   close(sock);
 
@@ -301,68 +410,84 @@ void print_error(const int errcd, const int syserr, ...) {
 
   switch ( errcd ) {
     /* Errors */
-    case ERR_FPATH_ERR :
+    case ERR_FPATH_ERR:
       strncpy(errcd_fmt, ERR_FPATH_ERR_STR, sizeof(errcd_fmt));
       break;
-    case ERR_FNAME_ERR :
+    case ERR_FNAME_ERR:
       strncpy(errcd_fmt, ERR_FNAME_ERR_STR, sizeof(errcd_fmt));
       break;
-    case ERR_HOSTNM_ERR :
+    case ERR_HOSTNM_ERR:
       strncpy(errcd_fmt, ERR_HOSTNM_ERR_STR, sizeof(errcd_fmt));
       break;
-    case ERR_NO_FILE_GIVEN :
+    case ERR_NO_FILE_GIVEN:
       strncpy(errcd_fmt, ERR_NO_FILE_GIVEN_STR, sizeof(errcd_fmt));
       break;
-    case ERR_INVLD_FILE_NM :
+    case ERR_INVLD_FILE_NM:
       strncpy(errcd_fmt, ERR_INVLD_FILE_NM_STR, sizeof(errcd_fmt));
       break;
-    case ERR_NO_HOST_GIVEN :
+    case ERR_NO_HOST_GIVEN:
       strncpy(errcd_fmt, ERR_NO_HOST_GIVEN_STR, sizeof(errcd_fmt));
       break;
-    case ERR_CNT_RSLVE_HOST :
+    case ERR_CNT_RSLVE_HOST:
       strncpy(errcd_fmt, ERR_CNT_RSLVE_HOST_STR, sizeof(errcd_fmt));
       break;
-    case ERR_INVLD_AF :
+    case ERR_INVLD_AF:
       strncpy(errcd_fmt, ERR_INVLD_AF_STR, sizeof(errcd_fmt));
       break;
-    case ERR_CNT_RD_FILE :
+    case ERR_CNT_RD_FILE:
       strncpy(errcd_fmt, ERR_CNT_RD_FILE_STR, sizeof(errcd_fmt));
       break;
-    case ERR_CNT_GET_FILE_SZ :
+    case ERR_CNT_GET_FILE_SZ:
       strncpy(errcd_fmt, ERR_CNT_GET_FILE_SZ_STR, sizeof(errcd_fmt));
       break;
-    case ERR_CNT_OPEN_SOCK :
+    case ERR_CNT_OPEN_SOCK:
       strncpy(errcd_fmt, ERR_CNT_OPEN_SOCK_STR, sizeof(errcd_fmt));
       break;
-    case ERR_CNT_CNNCT_HOST :
+    case ERR_CNT_CNNCT_HOST:
       strncpy(errcd_fmt, ERR_CNT_CNNCT_HOST_STR, sizeof(errcd_fmt));
       break;
-    case ERR_SND_DATA :
+    case ERR_SND_DATA:
       strncpy(errcd_fmt, ERR_SND_DATA_STR, sizeof(errcd_fmt));
       break;
-    case ERR_RCV_DATA :
+    case ERR_RCV_DATA:
       strncpy(errcd_fmt, ERR_RCV_DATA_STR, sizeof(errcd_fmt));
       break;
+    case ERR_WR_DATA:
+      strncpy(errcd_fmt, ERR_WR_DATA_STR, sizeof(errcd_fmt));
+      break;
+    case ERR_RD_DATA:
+      strncpy(errcd_fmt, ERR_RD_DATA_STR, sizeof(errcd_fmt));
+      break;
+    case ERR_PIPE:
+      strncpy(errcd_fmt, ERR_PIPE_STR, sizeof(errcd_fmt));
+      break;
+    case ERR_CHILD:
+      strncpy(errcd_fmt, ERR_CHILD_STR, sizeof(errcd_fmt));
+      break;
+    case ERR_ZLIB:
+      strncpy(errcd_fmt, ERR_ZLIB_STR, sizeof(errcd_fmt));
+      break;
     /* Protocol (server) errors */
-    case ERR_SRV_UNKNWN :
+    case ERR_SRV_UNKNWN:
       strncpy(errcd_fmt, ERR_SRV_UNKNWN_STR, sizeof(errcd_fmt));
       break;
-    case ERR_SRV_PROTO_VER :
+    case ERR_SRV_PROTO_VER:
       strncpy(errcd_fmt, ERR_SRV_PROTO_VER_STR, sizeof(errcd_fmt));
       break;
-    case ERR_SRV_FILE_SZ :
+    case ERR_SRV_FILE_SZ:
       strncpy(errcd_fmt, ERR_SRV_FILE_SZ_STR, sizeof(errcd_fmt));
       break;
-    case ERR_SRV_FILE_NM :
+    case ERR_SRV_FILE_NM:
       strncpy(errcd_fmt, ERR_SRV_FILE_NM_STR, sizeof(errcd_fmt));
       break;
-    case ERR_SRV_SYS :
+    case ERR_SRV_SYS:
       strncpy(errcd_fmt, ERR_SRV_SYS_STR, sizeof(errcd_fmt));
       break;
     /* Warnings */
-    case WARN_ZERO_FILE :
+    case WARN_ZERO_FILE:
       strncpy(errcd_fmt, WARN_ZERO_FILE_STR, sizeof(errcd_fmt));
       break;
+    case 0: return;
     default: break;
   }
 
@@ -380,10 +505,17 @@ void print_error(const int errcd, const int syserr, ...) {
   va_end(v_lst);
 
   if ( syserr != 0 ) {
-    if ( errcd == ERR_CNT_RSLVE_HOST )
-      herror("; Resolve error");
-    else
-      perror("; System error");
+    switch ( errcd ) {
+      case ERR_CNT_RSLVE_HOST:
+        herror("; Resolve error");
+        break;
+      case ERR_ZLIB:
+        fprintf(stderr, "; Zlib error: %s\n", zError(Z_ERRNO));
+        break;
+      default:
+        perror("; System error");
+        break;
+    }
   }
   else
     fprintf(stderr, "\n");
@@ -391,14 +523,16 @@ void print_error(const int errcd, const int syserr, ...) {
 
 /* Function    : print_response
  * Description : Print the server response to the client terminal
+ * Parameters  : msg_err - error code of the message
+ * Return      : The value of the passed msg_err
  */
 int print_response(const struct twdc_msg * msg_err) {
-  int8_t err_cd = 0;
+  int err_cd = ERR_OK;
 
   switch ( err_cd = get_err_code(msg_err) ) {
     case TWDC_ERR_PROTO_VER: {
-        int8_t srv_ver_maj = 0;
-        int8_t srv_ver_min = 0;
+        uint8_t srv_ver_maj = 0;
+        uint8_t srv_ver_min = 0;
 
         get_ver_info((struct twdc_msg_head *)msg_err, &srv_ver_maj, &srv_ver_min);
         print_error(ERR_SRV_PROTO_VER, 0, TWDC_PROTO_VER_MAJOR, TWDC_PROTO_VER_MINOR, srv_ver_maj, srv_ver_min);
@@ -416,8 +550,10 @@ int print_response(const struct twdc_msg * msg_err) {
     default:
       if ( err_cd == TWDC_ERR_OK || err_cd == TWDC_ERR_FILE_NM || err_cd == TWDC_ERR_SYS )
         print_error(err_cd, 0);
-      else
+      else {
         print_error(ERR_SRV_UNKNWN, 0, ERR_SRV_UNKNWN);
+        err_cd = ERR_SRV_UNKNWN;
+      }
       return err_cd;
   }
 }
@@ -437,3 +573,80 @@ void hr_size(const int size, char * hr_str, const size_t hr_str_len) {
   snprintf(hr_str, hr_str_len, "%1.2f %s", sz, sz_arr[i]);
 }
 
+/* Function    : compress_sendfile
+ * Description : Transfer compressed data between files
+ * Parameters  : s_fd - source file descriptor
+ *               d_fd - destination file descriptor
+ */
+int compress_sendfile(int s_fd, int d_fd) {
+  Bytef in_buf[CHUNK] = {0};
+  Bytef out_buf[CHUNK] = {0};
+  size_t in_buf_len = CHUNK;
+  z_stream zstrm;
+  int zret = 0;
+  int flush = 0;
+
+  zstrm.zalloc = Z_NULL;
+  zstrm.zfree  = Z_NULL;
+  zstrm.opaque = Z_NULL;
+
+  zret = deflateInit(&zstrm, Z_DEFAULT_COMPRESSION);
+
+  if ( zret != Z_OK )
+    return ERR_ZLIB;
+
+  do {
+    if ( read_data(s_fd, in_buf, &in_buf_len) != 0 ) {
+      (void)deflateEnd(&zstrm);
+      return ERR_RD_DATA;
+    }
+
+    flush = (in_buf_len < CHUNK || in_buf_len == 0 ) ? Z_FINISH : Z_NO_FLUSH;
+
+    zstrm.avail_in = in_buf_len;
+    zstrm.next_in = in_buf;
+
+    do {
+      zstrm.avail_out = CHUNK;
+      zstrm.next_out = out_buf;
+
+      zret = deflate(&zstrm, flush);
+
+      if ( zret != Z_STREAM_ERROR ) {
+        size_t have = CHUNK - zstrm.avail_out;
+        size_t bw = have;
+        int ret = write_data(d_fd, out_buf, &bw);
+
+        if ( ret != 0 || bw < have ) {
+          (void)deflateEnd(&zstrm);
+          return ERR_WR_DATA;
+        }
+      }
+      else
+        return ERR_ZLIB;
+    } while (zstrm.avail_out == 0);
+  } while (flush != Z_FINISH);
+
+  return 0;
+}
+
+/* Function    : calc_duration
+ * Description : Subract two time values
+ * Raturn      : The duration in floating point seconds
+ */
+double calc_duration(struct timeval * end, struct timeval * begin) {
+  struct timeval result;
+
+  if ( end->tv_usec - begin->tv_usec > 1000000 ) {
+    int nsec = (end->tv_usec - begin->tv_usec) / 1000000;
+    begin->tv_usec += 1000000 * nsec;
+    begin->tv_sec -= nsec;
+  }
+
+  result.tv_sec = end->tv_sec - begin->tv_sec;
+  result.tv_usec = end->tv_usec - begin->tv_usec;
+
+  if ( end->tv_sec > begin->tv_sec )
+    return (result.tv_sec + result.tv_usec * 1e-6);
+  return 0.0;
+}
