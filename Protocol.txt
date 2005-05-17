@@ -1,0 +1,45 @@
+			   TWDC Protocol Description
+
+			      by Georgi D. Sotirov
+				   09/05/2005
+
+
+				    Contents
+
+0. Preface
+1. Description
+2. Messages
+3. Communication flow
+
+
+				   0. Preface
+
+   This document describes the TWDC (Tumbleweed Developer Contest) protocol and
+is targeted mainly for developer audience.
+
+				 1. Description
+
+   The TWDC protocol is generally a file transfer protocol. Currently it
+supports only sending of file from client to server, but it is designed so
+it can be easily expanded and new functions added.
+   The protocol is binary protocol. All data is send in binary format even
+control messages. The first byte of the message gives its type and hints the
+processing of the message.
+   TODO: Decide whether the protocol will be synchronous or asynchronous.
+
+				  2. Messages
+
+   Each message of the protocol consists of header and body. The header gives
+service information such as message type and protocol version. The body
+contains only data in different formats depending of the message type.
+
+   There are three types of messages:
+    * error message: it gives the status of the last operation
+    * file message: with this message the client request file transfer to
+                    the server
+    * data message: this message is used for data transfers. All the data
+                    is _compressed_.
+
+			     3. Communication flow
+
+   
