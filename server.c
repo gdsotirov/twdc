@@ -22,7 +22,7 @@
  * File: server.c
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: server.c,v 1.16 2005/05/14 22:26:10 gsotirov Exp $
+ * $Id: server.c,v 1.17 2005/05/17 20:25:55 gsotirov Exp $
  */
 
 #define _GNU_SOURCE
@@ -50,9 +50,12 @@
 #include "data.h"
 #include "server.h"
 
+#define CHUNK 16384
+
 int writelog(const int err_num, const char * cl_msg_fmt, ...);
 int init_addr(char * host_nm, const size_t host_nm_sz, struct sockaddr_in * addr);
 int service(int cl_sock, struct sockaddr_in * cl_addr);
+int decompress_writefile(int dest, void * data, size_t data_sz);
 
 int main(int argc, char * argv[]) {
   int sock = 0;
@@ -68,7 +71,7 @@ int main(int argc, char * argv[]) {
 
   /* - fork a child to start a new session */
   switch ( fork() ) {
-    case -1: writelog(errno, "Error: Can not fork a child");
+    case -1: writelog(errno, "Error: Can not create a child");
              exit(-1);
   /* - become session leader */
     case  0: if ( setsid() == -1 ) {
@@ -77,7 +80,7 @@ int main(int argc, char * argv[]) {
              }
 
              switch ( fork() ) {
-               case -1: writelog(errno, "Error: Can not fork a child");
+               case -1: writelog(errno, "Error: Can not create a child");
                         exit(-1);
                case  0: umask(0);
                         break;
@@ -232,21 +235,21 @@ int service(int cl_sock, struct sockaddr_in * cl_addr) {
   strncpy(cl_addr_str, inet_ntoa(cl_addr->sin_addr), INET_ADDRSTRLEN);
   do {
     /* Read a message header */
-    if ( rcv_data(cl_sock, (char *)&msg, TWDC_MSG_HEAD_SZ, MSG_PEEK) != 0 ) {
+    if ( rcv_data(cl_sock, (uint8_t *)&msg, TWDC_MSG_HEAD_SZ, MSG_PEEK) != 0 ) {
       end_comm = 1;
       break;
     }
 
     /* Unsupported protocol version */
     if ( !check_version_maj((struct twdc_msg_head *)&msg, TWDC_PROTO_VER_MAJOR, CT_GTOREQ) ) {
-      int8_t ver_maj = 0;
-      int8_t ver_min = 0;
+      uint8_t ver_maj = 0;
+      uint8_t ver_min = 0;
 
       end_comm = 1;
       get_ver_info((struct twdc_msg_head *)&msg, &ver_maj, &ver_min);
       writelog(0, "Error: Rejected client '%s' because of unsuported protocol version %d.%d", cl_addr_str, ver_maj, ver_min);
       make_err_msg(&msg, TWDC_ERR_PROTO_VER, TWDC_PROTO_VER_MAJOR, TWDC_PROTO_VER_MINOR);
-      snd_data(cl_sock, (char *)&msg, TWDC_MSG_ERR_FULL_SZ, 0x0);
+      snd_data(cl_sock, (uint8_t *)&msg, TWDC_MSG_ERR_FULL_SZ, 0x0);
       break;
     }
 
@@ -255,17 +258,17 @@ int service(int cl_sock, struct sockaddr_in * cl_addr) {
        * Process File Request Message
        */
       case TWDC_MSG_FILE_REQ:
-        if ( rcv_data(cl_sock, (char *)&msg, TWDC_MSG_FILE_SZ, MSG_WAITALL) != 0 ) {
+        if ( rcv_data(cl_sock, (uint8_t *)&msg, TWDC_MSG_FILE_SZ, MSG_WAITALL) != 0 ) {
           end_comm = 1;
           break;
         }
-        read_file_msg(&msg, fname, NAME_MAX, &fsize);
+        read_file_msg(&msg, (uint8_t *)fname, NAME_MAX, &fsize);
         /* Deny upload of files bigger than the hardcoded limit */
         if ( fsize > MAX_FILE_SIZE ) {
           end_comm = 1;
           writelog(0, "Error: Rejected file with size %d Bytes from '%s'", fsize, cl_addr_str);
           make_err_msg(&msg, TWDC_ERR_FILE_SZ, MAX_FILE_SIZE);
-          snd_data(cl_sock, (char *)&msg, TWDC_MSG_ERR_FULL_SZ, 0x0);
+          snd_data(cl_sock, (uint8_t *)&msg, TWDC_MSG_ERR_FULL_SZ, 0x0);
         }
 
         if ( strlen(fname) > 0 ) {
@@ -277,24 +280,24 @@ int service(int cl_sock, struct sockaddr_in * cl_addr) {
             if ( (filed = open(fname_full, O_CREAT, S_IRWXU | S_IRGRP | S_IROTH)) == -1 ) {
               writelog(errno, "Error: Cannot create file '%s' by request of client '%s'", fname_full, cl_addr_str);
               make_err_msg(&msg, TWDC_ERR_SYS);
-              snd_data(cl_sock, (char *)&msg, TWDC_MSG_ERR_FULL_SZ, 0x0);
+              snd_data(cl_sock, (uint8_t *)&msg, TWDC_MSG_ERR_FULL_SZ, 0x0);
             }
             else {
               writelog(0, "Info: Accepted file '%s' (%d bytes) from '%s'", fname, fsize, cl_addr_str);
               make_err_msg(&msg, TWDC_ERR_OK);
-              snd_data(cl_sock, (char *)&msg, TWDC_MSG_ERR_FULL_SZ, 0x0);
+              snd_data(cl_sock, (uint8_t *)&msg, TWDC_MSG_ERR_FULL_SZ, 0x0);
             }
           }
           else {
             writelog(errno, "Error: Can not allocate memory");
             make_err_msg(&msg, TWDC_ERR_SYS);
-            snd_data(cl_sock, (char *)&msg, TWDC_MSG_ERR_FULL_SZ, 0x0);
+            snd_data(cl_sock, (uint8_t *)&msg, TWDC_MSG_ERR_FULL_SZ, 0x0);
           }
         }
         else {
           writelog(0, "Warning: Client '%s' did not specify file name", cl_addr_str);
           make_err_msg(&msg, TWDC_ERR_FILE_NM);
-          snd_data(cl_sock, (char *)&msg, TWDC_MSG_ERR_FULL_SZ, 0x0);
+          snd_data(cl_sock, (uint8_t *)&msg, TWDC_MSG_ERR_FULL_SZ, 0x0);
         }
         break;
       /*
@@ -303,7 +306,7 @@ int service(int cl_sock, struct sockaddr_in * cl_addr) {
       case TWDC_MSG_ERROR: {
           int8_t err_cd = 0;
 
-          rcv_data(cl_sock, (char *)&msg, TWDC_MSG_ERR_FULL_SZ, MSG_WAITALL);
+          rcv_data(cl_sock, (uint8_t *)&msg, TWDC_MSG_ERR_FULL_SZ, MSG_WAITALL);
           err_cd = get_err_code(&msg);
           if ( err_cd != TWDC_ERR_OK )
             writelog(0, "Info: Error %d received from client '%s'", err_cd, cl_addr_str);
@@ -313,7 +316,8 @@ int service(int cl_sock, struct sockaddr_in * cl_addr) {
        * Process Data Message
        */
       case TWDC_MSG_DATA:
-        rcv_data(cl_sock, (char *)&msg, TWDC_MSG_DATA_FULL_SZ, MSG_WAITALL);
+        rcv_data(cl_sock, (uint8_t *)&msg, TWDC_MSG_DATA_FULL_SZ, 0x0);
+        decompress_writefile(filed, msg.body.data.buf, msg.body.data.size);
         writelog(0, "Info: Data transfer");
         break;
     }
@@ -329,6 +333,18 @@ int service(int cl_sock, struct sockaddr_in * cl_addr) {
     free(fname);
   if ( fname_full != NULL )
     free(fname_full);
+
+  return 0;
+}
+
+/* Function    : decompress_writefile
+ * Description : Decompress data from buffer and write it to a file
+ */
+int decompress_writefile(int dest, void * data, size_t data_sz) {
+  static Bytef in_buf[CHUNK];
+  static Bytef out_buf[CHUNK];
+
+  /* TODO */
 
   return 0;
 }
