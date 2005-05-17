@@ -22,18 +22,19 @@
  * File: data.h
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: data.h,v 1.2 2005/05/13 17:32:36 gsotirov Exp $
+ * $Id: data.h,v 1.3 2005/05/17 20:16:46 gsotirov Exp $
  */
 
 #ifndef __TWDC_DATA_H__
 #define __TWDC_DATA_H__
 
+#include <stdint.h>
 #include <sys/types.h>
 
-int read_data(int fd, char * buf, size_t buf_len);
-int write_data(int fd, char * buf, size_t buf_len);
-int rcv_data(int sock, char * buf, size_t buf_len, int flags);
-int snd_data(int sock, char * buf, size_t buf_len, int flags);
+int read_data(int fd, uint8_t * buf, size_t * buf_len);
+int write_data(int fd, uint8_t * buf, size_t * buf_len);
+int rcv_data(int sock, uint8_t * buf, size_t buf_len, int flags);
+int snd_data(int sock, uint8_t * buf, size_t buf_len, int flags);
 
 #endif /* __TWDC_DATA_H__ */
 
