@@ -22,7 +22,7 @@
  * File: client.c
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: client.c,v 1.15 2005/05/17 20:15:34 gsotirov Exp $
+ * $Id: client.c,v 1.16 2019/03/31 06:37:06 gsotirov Exp $
  */
 
 #include <stdio.h>
@@ -66,7 +66,6 @@ int compress_sendfile(int source_fd, int dest_fd);
 double calc_duration(struct timeval * end, struct timeval * begin);
 
 int main(int argc, char * argv[]) {
-  int c = 0;
   /* available options */
   struct option cl_optns[] = {
     {"file",    1, 0, 'f'},
@@ -101,7 +100,7 @@ int main(int argc, char * argv[]) {
   progname = argv[0];
 
   while (1) {
-    c = getopt_long(argc, argv, "f:h:p::vxy", cl_optns, NULL);
+    int c = getopt_long(argc, argv, "f:h:p::vxy", cl_optns, NULL);
 
     if ( c == -1 )
       break;
@@ -210,7 +209,7 @@ int main(int argc, char * argv[]) {
   strncpy(hostaddr_str, (char *)inet_ntoa(sock_addr.sin_addr), sizeof(hostaddr_str));
 
   if ( verbose )
-    printf("%s[%d]: Connecting to '%s:%hd' (%s:%hd)...\n", progname, cl_pid, hostnm, port, hostaddr_str, port);
+    printf("%s[%d]: Connecting to '%s:%hu' (%s:%hu)...\n", progname, cl_pid, hostnm, port, hostaddr_str, port);
 
   if ( connect(sock, (struct sockaddr *)&sock_addr, sizeof(sock_addr)) != 0 ) {
     print_error(ERR_CNT_CNNCT_HOST, errno, hostnm, port, inet_ntoa(sock_addr.sin_addr), port);
@@ -221,7 +220,7 @@ int main(int argc, char * argv[]) {
   }
 
   if ( verbose )
-    printf("%s[%d]: Connected to '%s:%hd' (%s:%hd)\n", progname, cl_pid, hostnm, port, hostaddr_str, port);
+    printf("%s[%d]: Connected to '%s:%hu' (%s:%hu)\n", progname, cl_pid, hostnm, port, hostaddr_str, port);
 
   /* Request file upload to the server */
   make_file_msg(&msg, (uint8_t *)fbname, fstat.st_size);
@@ -229,7 +228,7 @@ int main(int argc, char * argv[]) {
   if ( verbose ) {
     char hr_fsize_str[10] = {0};
     hr_size(fstat.st_size, hr_fsize_str, sizeof(hr_fsize_str));
-    printf("%s[%d]: Requesting upload of file '%s' with size %d Bytes (%s)...\n", progname, cl_pid, fname, (size_t)fstat.st_size, hr_fsize_str);
+    printf("%s[%d]: Requesting upload of file '%s' with size %zud Bytes (%s)...\n", progname, cl_pid, fname, (size_t)fstat.st_size, hr_fsize_str);
   }
 
   if ( snd_data(sock, (uint8_t *)&msg, TWDC_MSG_FILE_FULL_SZ, 0x0) != 0 ) {
@@ -252,7 +251,7 @@ int main(int argc, char * argv[]) {
   if ( get_msg_type((struct twdc_msg_head *)&msg) == TWDC_MSG_ERROR ) {
     if ( get_err_code(&msg) == TWDC_ERR_OK ) {
       if ( verbose )
-        printf("%s[%d]: Server '%s:%hd' accepted file '%s'.\n", progname, cl_pid, hostnm, port, fname);
+        printf("%s[%d]: Server '%s:%hu' accepted file '%s'.\n", progname, cl_pid, hostnm, port, fname);
     }
     else {
       shutdown(sock, SHUT_RDWR);
@@ -349,7 +348,7 @@ int main(int argc, char * argv[]) {
   printf("%s[%d]: Successful transfer\n", progname, cl_pid);
   printf("%s[%d]: File: %s\n", progname, cl_pid, fname);
   hr_size(fstat.st_size, size_str, sizeof(size_str));
-  printf("%s[%d]: Size: %d Bytes (%s)\n", progname, cl_pid, (size_t)fstat.st_size, size_str);
+  printf("%s[%d]: Size: %zud Bytes (%s)\n", progname, cl_pid, (size_t)fstat.st_size, size_str);
   hr_size(transfered, size_str, sizeof(size_str));
   printf("%s[%d]: Transfered: %d Bytes (%s)\n", progname, cl_pid, transfered, size_str);
   printf("%s[%d]: Duration: %1.3f seconds\n", progname, cl_pid, dur);
@@ -363,7 +362,7 @@ int main(int argc, char * argv[]) {
   close(sock);
 
   if ( verbose )
-    printf("%s[%d]: Connection to '%s:%hd' (%s:%hd) closed.\n", progname, cl_pid, hostnm, port, hostaddr_str, port);
+    printf("%s[%d]: Connection to '%s:%hu' (%s:%hu) closed.\n", progname, cl_pid, hostnm, port, hostaddr_str, port);
 
   if ( hostnm != NULL )
     free(hostnm);
