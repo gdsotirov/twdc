@@ -22,7 +22,7 @@
  * File: data.c
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: data.c,v 1.3 2005/05/17 20:17:47 gsotirov Exp $
+ * $Id: data.c,v 1.4 2019/03/31 06:42:31 gsotirov Exp $
  */
 
 #include <unistd.h>
@@ -38,9 +38,10 @@
  */
 int read_data(int fd, uint8_t * buf, size_t * buf_len) {
   size_t tr = 0; /* total read */
-  size_t br = 0; /* bytes read at once */
 
   while ( tr < *buf_len ) {
+    size_t br = 0; /* bytes read at once */
+
     if ( (br = read(fd, buf, *buf_len)) > 0 ) {
       tr += br;
       buf += br;
@@ -64,9 +65,10 @@ int read_data(int fd, uint8_t * buf, size_t * buf_len) {
  */
 int write_data(int fd, uint8_t * buf, size_t * buf_len) {
   size_t tw = 0; /* total written */
-  size_t bw = 0; /* bytes written at once */
 
   while ( tw < *buf_len ) {
+    ssize_t bw = 0; /* bytes written at once */
+
     if ( (bw = write(fd, buf, *buf_len)) > 0 ) {
       tw += bw;
       buf += bw;
@@ -91,9 +93,10 @@ int write_data(int fd, uint8_t * buf, size_t * buf_len) {
  */
 int rcv_data(int sock, uint8_t * buf, size_t buf_len, int flags) {
   size_t tr = 0; /* total received */
-  size_t br = 0; /* bytes received at once */
 
   while ( tr < buf_len) {
+    ssize_t br = 0; /* bytes received at once */
+
     if ( (br = recv(sock, buf, buf_len, flags)) > 0 ) {
       tr += br;
       buf += br;
@@ -114,9 +117,10 @@ int rcv_data(int sock, uint8_t * buf, size_t buf_len, int flags) {
  */
 int snd_data(int sock, uint8_t * buf, size_t buf_len, int flags) {
   size_t ts = 0; /* total send */
-  size_t bs = 0; /* bytes send at once */
 
   while ( ts < buf_len) {
+    ssize_t bs = 0; /* bytes send at once */
+
     if ( (bs = send(sock, buf, buf_len, flags)) > 0 ) {
       ts += bs;
       buf += bs;
