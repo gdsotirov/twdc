@@ -22,7 +22,7 @@
  * File: protocol.c
  * ---
  * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: protocol.c,v 1.6 2005/05/17 20:26:17 gsotirov Exp $
+ * $Id: protocol.c,v 1.7 2019/03/31 06:44:50 gsotirov Exp $
  */
 
 #include <string.h>
@@ -167,9 +167,8 @@ int8_t get_err_code(const struct twdc_msg * msg) {
  * Description : Retrive information from an error message
  */
 void read_err_msg(const struct twdc_msg * msg, ...) {
-  int8_t err_cd = 0;
-
   if ( msg != NULL ) {
+    int8_t err_cd = 0;
     va_list vl;
 
     err_cd = msg->body.error.err_code;
