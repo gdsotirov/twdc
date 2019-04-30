@@ -3,8 +3,6 @@
 # $Id: Makefile,v 1.7 2005/05/17 20:14:04 gsotirov Exp $
 #
 
-DEBUG = 1
-
 CC = gcc
 CXX = g++
 LIBS=-lz
@@ -35,16 +33,16 @@ data.o: data.c data.h
 	$(CC) $(CFLAGS) -o $@ -c $<
 
 $(CLIENT_NAME).o: client.c client.h globals.h protocol.h data.h
-	$(CC) $(CFLAGS) -o $@ -c $<
+	$(CC) $(CFLAGS) -D_DEFAULT_SOURCE -o $@ -c $<
 
 $(SERVER_NAME).o: server.c server.h globals.h protocol.h data.h
 	$(CC) $(CFLAGS) -o $@ -c $<
 
 $(CLIENT_NAME): $(CLIENT_NAME).o $(COMMON_OBJS)
-	$(CC) $(CFLAGS) $(LIBS) -o $@ $< $(COMMON_OBJS)
+	$(CC) $(CFLAGS) -o $@ $< $(COMMON_OBJS) $(LIBS)
 
 $(SERVER_NAME): $(SERVER_NAME).o $(COMMON_OBJS)
-	$(CC) $(CFLAGS) $(LIBS) -o $@ $< $(COMMON_OBJS)
+	$(CC) $(CFLAGS) -o $@ $< $(COMMON_OBJS) $(LIBS)
 
 rebuild: clean build
 
