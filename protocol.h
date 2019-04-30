@@ -72,7 +72,7 @@
 #define TWDC_ERR_SYS_STR       "A system error occured while in operation"
 
 #ifdef __GNUC__
-#define DI_PACKET __attribute__ ((packed, aligned(1)))
+#define DI_PACKET __attribute__ ((aligned(1)))
 #else
 #define DI_PACKET
 #endif
