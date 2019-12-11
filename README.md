@@ -1,4 +1,5 @@
 [![Build Status](https://travis-ci.com/gdsotirov/twdc.svg?branch=master)](https://travis-ci.com/gdsotirov/twdc)
+![](https://github.com/gdsotirov/twdc/workflows/C/C++%20CI/badge.svg)
 
 # TWDC
 
