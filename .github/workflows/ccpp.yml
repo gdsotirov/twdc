@@ -1,0 +1,16 @@
+name: C/C++ CI
+
+on: [push]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v1
+    - name: Install dependencies
+      run: sudo apt-get -yq --no-install-suggests --no-install-recommends install zlib1g-dev
+    - name: Build
+      run: make
+
