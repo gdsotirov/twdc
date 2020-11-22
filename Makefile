@@ -1,6 +1,5 @@
 # Makefile for the Tumbleweed Developer's Contest Task
-# Written by Georgi D. Sotirov <gdsotirov@dir.bg>
-# $Id: Makefile,v 1.7 2005/05/17 20:14:04 gsotirov Exp $
+# Written by Georgi D. Sotirov <gdsotirov@gmail.com>
 #
 
 CC = gcc

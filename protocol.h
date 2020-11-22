@@ -22,8 +22,7 @@
  *              messages and interface
  * File: protocol.h
  * ---
- * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: protocol.h,v 1.11 2005/05/17 20:25:05 gsotirov Exp $
+ * Written by Georgi D. Sotirov <gdsotirov@gmail.com>
  */
 
 #ifndef __TWDC_PROTOCOL_H__

@@ -21,8 +21,7 @@
  * Description: Server configuraiton
  * File: server.h
  * ---
- * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: server.h,v 1.7 2005/05/14 22:24:54 gsotirov Exp $
+ * Written by Georgi D. Sotirov <gdsotirov@gmail.com>
  */
 
 #ifndef __TWDC_SERVER_H__

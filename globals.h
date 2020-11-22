@@ -21,8 +21,7 @@
  * Description: Global constants
  * File: globals.h
  * ---
- * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: globals.h,v 1.2 2005/05/14 17:47:40 gsotirov Exp $
+ * Written by Georgi D. Sotirov <gdsotirov@gmail.com>
  */
 
 #ifndef __TWDC_GLOBALS_H__
@@ -34,8 +33,8 @@
 
 /* programm information */
 #define AUTHOR_NAME  "Georgi D. Sotirov"
-#define AUTHOR_EMAIL "gdsotirov@dir.bg"
-#define VERSION      "cvs"
+#define AUTHOR_EMAIL "gdsotirov@gmail.com"
+#define VERSION      "git"
 
 #endif /* __TWDC_GLOBALS_H__ */
 

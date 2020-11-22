@@ -21,8 +21,7 @@
  * Description: Data manipulation routines
  * File: data.h
  * ---
- * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: data.h,v 1.3 2005/05/17 20:16:46 gsotirov Exp $
+ * Written by Georgi D. Sotirov <gdsotirov@gmail.com>
  */
 
 #ifndef __TWDC_DATA_H__

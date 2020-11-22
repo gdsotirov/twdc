@@ -21,8 +21,7 @@
  * Description: Protocol interface implementation
  * File: protocol.c
  * ---
- * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: protocol.c,v 1.7 2019/03/31 06:44:50 gsotirov Exp $
+ * Written by Georgi D. Sotirov <gdsotirov@gmail.com>
  */
 
 #include <string.h>

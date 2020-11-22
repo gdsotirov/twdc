@@ -21,8 +21,7 @@
  * Description: Data manipulation routines
  * File: data.c
  * ---
- * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: data.c,v 1.4 2019/03/31 06:42:31 gsotirov Exp $
+ * Written by Georgi D. Sotirov <gdsotirov@gmail.com>
  */
 
 #include <unistd.h>

@@ -21,8 +21,7 @@
  * Description: Server main programm
  * File: server.c
  * ---
- * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: server.c,v 1.17 2005/05/17 20:25:55 gsotirov Exp $
+ * Written by Georgi D. Sotirov <gdsotirov@gmail.com>
  */
 
 #define _GNU_SOURCE

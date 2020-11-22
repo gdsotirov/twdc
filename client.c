@@ -21,8 +21,7 @@
  * Description: Client main programm
  * File: client.c
  * ---
- * Written by George D. Sotirov <gdsotirov@dir.bg>
- * $Id: client.c,v 1.16 2019/03/31 06:37:06 gsotirov Exp $
+ * Written by Georgi D. Sotirov <gdsotirov@gmail.com>
  */
 
 #include <stdio.h>
